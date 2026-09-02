@@ -9,24 +9,26 @@ import {
   MapPin, 
   Star, 
   Clock, 
-  Phone, 
   ArrowLeft, 
   ShieldCheck, 
   Sparkles,
   TrendingDown
 } from "lucide-react";
-import { STORES, getProducts } from "@/lib/data";
+import { getStores, getProducts } from "@/lib/data";
 import { ProductCard } from "@/components/ProductCard";
 import { DriftPricingModal } from "@/components/DriftPricingModal";
+import { StoreReviewsModal } from "@/components/StoreReviewsModal";
 import { Product } from "@/lib/types";
 
 export default function StoreDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
-  const store = STORES.find((s) => s.slug === slug || s.id === slug) || STORES[0];
+  const stores = getStores();
+  const store = stores.find((s) => s.slug === slug || s.id === slug) || stores[0];
 
   const products = getProducts().filter((p) => p.storeId === store.id);
   const [activeDriftProduct, setActiveDriftProduct] = useState<Product | null>(null);
+  const [reviewsOpen, setReviewsOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-emerald-500 selection:text-white pb-12">
@@ -49,14 +51,14 @@ export default function StoreDetailPage() {
             className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>All Abuja Supermarkets</span>
+            <span>All Partner Supermarkets</span>
           </Link>
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pt-2">
             <div className="space-y-2 max-w-2xl">
               <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-black">
                 <MapPin className="w-3.5 h-3.5" />
-                <span>{store.area}, ABUJA</span>
+                <span>{store.area}</span>
               </div>
               <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
                 {store.name}
@@ -69,9 +71,14 @@ export default function StoreDetailPage() {
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 shrink-0 text-xs space-y-2">
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-300">Customer Rating</span>
-                <span className="font-black text-amber-300 flex items-center gap-1">
-                  ★ {store.rating} ({store.reviewCount} reviews)
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setReviewsOpen(true)}
+                  className="font-black text-amber-300 flex items-center gap-1 hover:underline cursor-pointer"
+                >
+                  <Star className="w-3.5 h-3.5 fill-amber-300" />
+                  <span>{store.rating} ({store.reviewCount} reviews)</span>
+                </button>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-300">Operating Hours</span>
@@ -95,7 +102,7 @@ export default function StoreDetailPage() {
           </div>
           <div>
             <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-              Pickup Desk Instructions
+              Pickup Instructions
             </h3>
             <p className="text-xs text-slate-600 font-medium mt-0.5 leading-relaxed">
               {store.pickupInstructions}
@@ -137,6 +144,12 @@ export default function StoreDetailPage() {
         product={activeDriftProduct}
         isOpen={!!activeDriftProduct}
         onClose={() => setActiveDriftProduct(null)}
+      />
+
+      <StoreReviewsModal
+        store={store}
+        isOpen={reviewsOpen}
+        onClose={() => setReviewsOpen(false)}
       />
 
     </div>

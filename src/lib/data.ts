@@ -12,12 +12,12 @@ export const STORES: Store[] = [
     rating: 4.8,
     reviewCount: 342,
     openHours: "8:00 AM – 9:00 PM (Daily)",
-    pickupInstructions: "Proceed to the dedicated Stillgood Express Counter next to the bakery section. Present your 4-digit PIN.",
+    pickupInstructions: "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the customer care desk.",
     image: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=800&q=80",
     bannerImage: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80",
     coordinates: { lat: 9.0578, lng: 7.4951 },
     isActive: true,
-    totalDeals: 18,
+    totalDeals: 3,
   },
   {
     id: "store_h_medix",
@@ -29,12 +29,12 @@ export const STORES: Store[] = [
     rating: 4.9,
     reviewCount: 520,
     openHours: "8:00 AM – 10:00 PM (Daily)",
-    pickupInstructions: "Collect at Customer Service Desk on Ground Floor near the pharmaceutical dispensary.",
+    pickupInstructions: "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the customer care desk.",
     image: "https://images.unsplash.com/photo-1583258292688-d0213dc5a3a8?auto=format&fit=crop&w=800&q=80",
     bannerImage: "https://images.unsplash.com/photo-1579113800032-c38bd7635818?auto=format&fit=crop&w=1200&q=80",
     coordinates: { lat: 9.0772, lng: 7.4812 },
     isActive: true,
-    totalDeals: 24,
+    totalDeals: 3,
   },
   {
     id: "store_next_cash_carry",
@@ -46,12 +46,12 @@ export const STORES: Store[] = [
     rating: 4.7,
     reviewCount: 890,
     openHours: "9:00 AM – 8:30 PM (Daily)",
-    pickupInstructions: "Use Entrance B (Online Pickups). Customer service desk will inspect and seal your grocery bag.",
+    pickupInstructions: "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at Entrance B online pickup desk.",
     image: "https://images.unsplash.com/photo-1534723452862-4c874018d66d?auto=format&fit=crop&w=800&q=80",
     bannerImage: "https://images.unsplash.com/photo-1506484381205-f7945653044d?auto=format&fit=crop&w=1200&q=80",
     coordinates: { lat: 9.0911, lng: 7.4328 },
     isActive: true,
-    totalDeals: 31,
+    totalDeals: 2,
   },
   {
     id: "store_4u",
@@ -63,12 +63,12 @@ export const STORES: Store[] = [
     rating: 4.6,
     reviewCount: 410,
     openHours: "8:30 AM – 9:30 PM (Daily)",
-    pickupInstructions: "Show your order confirmation SG-XXXXX at the manager's desk right by Cashier 1.",
+    pickupInstructions: "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the customer care desk.",
     image: "https://images.unsplash.com/photo-1588964895597-cfccd6e2dbf9?auto=format&fit=crop&w=800&q=80",
     bannerImage: "https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=1200&q=80",
     coordinates: { lat: 9.0715, lng: 7.4789 },
     isActive: true,
-    totalDeals: 15,
+    totalDeals: 3,
   },
   {
     id: "store_sahad",
@@ -80,12 +80,12 @@ export const STORES: Store[] = [
     rating: 4.7,
     reviewCount: 630,
     openHours: "8:30 AM – 8:00 PM (Daily)",
-    pickupInstructions: "Collect from the Stillgood Verified Counter at the Ground Floor exit.",
+    pickupInstructions: "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the ground floor exit desk.",
     image: "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=800&q=80",
     bannerImage: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1200&q=80",
     coordinates: { lat: 9.0512, lng: 7.4891 },
     isActive: true,
-    totalDeals: 21,
+    totalDeals: 2,
   },
   {
     id: "store_market_square",
@@ -97,12 +97,12 @@ export const STORES: Store[] = [
     rating: 4.8,
     reviewCount: 290,
     openHours: "9:00 AM – 9:00 PM (Daily)",
-    pickupInstructions: "Pickup shelf located directly beside the Bakery & Delicatessen wing.",
+    pickupInstructions: "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the customer care desk.",
     image: "https://images.unsplash.com/photo-1543083477-4f785aeafaa9?auto=format&fit=crop&w=800&q=80",
     bannerImage: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80",
     coordinates: { lat: 9.0745, lng: 7.4290 },
     isActive: true,
-    totalDeals: 19,
+    totalDeals: 3,
   },
 ];
 
@@ -616,12 +616,184 @@ export function getProducts(): Product[] {
   });
 }
 
+export interface StoreReview {
+  id: string;
+  customerName: string;
+  rating: number;
+  date: string;
+  comment: string;
+  verifiedPickup: boolean;
+  userType: "Customer" | "Dispatch Rider";
+}
+
+export interface StoreReviewData {
+  freshnessScore: number;
+  handoffSpeedScore: number;
+  cleanlinessScore: number;
+  reviews: StoreReview[];
+}
+
+export const STORE_REVIEWS: Record<string, StoreReviewData> = {
+  store_grand_square: {
+    freshnessScore: 4.9,
+    handoffSpeedScore: 4.8,
+    cleanlinessScore: 4.9,
+    reviews: [
+      {
+        id: "rev_1",
+        customerName: "Emeka O.",
+        rating: 5,
+        date: "Yesterday",
+        comment: "Sent a dispatch rider with my SG order code. The bag was already packed and sealed with cold items chilled. Super seamless!",
+        verifiedPickup: true,
+        userType: "Customer",
+      },
+      {
+        id: "rev_2",
+        customerName: "Rider Ibrahim (Max NG)",
+        rating: 5,
+        date: "3 days ago",
+        comment: "Very fast pickup at the Stillgood Express desk. Verified the 4-digit code in 30 seconds. No delay for riders.",
+        verifiedPickup: true,
+        userType: "Dispatch Rider",
+      },
+      {
+        id: "rev_3",
+        customerName: "Fatima D.",
+        rating: 4.8,
+        date: "Last week",
+        comment: "Saved over 45% on Peak milk and brioche buns. Best before dates were exactly as shown on the app.",
+        verifiedPickup: true,
+        userType: "Customer",
+      },
+    ],
+  },
+  store_h_medix: {
+    freshnessScore: 4.9,
+    handoffSpeedScore: 4.9,
+    cleanlinessScore: 5.0,
+    reviews: [
+      {
+        id: "rev_4",
+        customerName: "Zainab A.",
+        rating: 5,
+        date: "2 days ago",
+        comment: "H-Medix Wuse II staff were very polite. The Lurpak butter was kept in deep refrigeration until I arrived.",
+        verifiedPickup: true,
+        userType: "Customer",
+      },
+      {
+        id: "rev_5",
+        customerName: "Rider Samuel (Gokada)",
+        rating: 4.9,
+        date: "4 days ago",
+        comment: "Quick customer service counter pickup. Code validation works instantly.",
+        verifiedPickup: true,
+        userType: "Dispatch Rider",
+      },
+    ],
+  },
+  store_next_cash_carry: {
+    freshnessScore: 4.7,
+    handoffSpeedScore: 4.6,
+    cleanlinessScore: 4.8,
+    reviews: [
+      {
+        id: "rev_6",
+        customerName: "Chidi N.",
+        rating: 5,
+        date: "5 days ago",
+        comment: "Entrance B pickup was so organized. Nutella jar in pristine condition at 45% off retail.",
+        verifiedPickup: true,
+        userType: "Customer",
+      },
+    ],
+  },
+  store_4u: {
+    freshnessScore: 4.8,
+    handoffSpeedScore: 4.7,
+    cleanlinessScore: 4.7,
+    reviews: [
+      {
+        id: "rev_7",
+        customerName: "Amina K.",
+        rating: 5,
+        date: "3 days ago",
+        comment: "Sent my rider to 4U in Wuse II. Smooth handoff with the manager.",
+        verifiedPickup: true,
+        userType: "Customer",
+      },
+    ],
+  },
+  store_sahad: {
+    freshnessScore: 4.8,
+    handoffSpeedScore: 4.7,
+    cleanlinessScore: 4.8,
+    reviews: [
+      {
+        id: "rev_8",
+        customerName: "Bello M.",
+        rating: 5,
+        date: "6 days ago",
+        comment: "Milo and Titus sardines well packed. Ground floor counter is easy to find.",
+        verifiedPickup: true,
+        userType: "Customer",
+      },
+    ],
+  },
+  store_market_square: {
+    freshnessScore: 4.9,
+    handoffSpeedScore: 4.8,
+    cleanlinessScore: 4.9,
+    reviews: [
+      {
+        id: "rev_9",
+        customerName: "Kelechi U.",
+        rating: 5,
+        date: "Yesterday",
+        comment: "Frozen Zartech chicken was rock solid frozen upon collection. Very impressed with the cold storage.",
+        verifiedPickup: true,
+        userType: "Customer",
+      },
+    ],
+  },
+};
+
+export function getStoreReviews(storeId: string): StoreReviewData {
+  return (
+    STORE_REVIEWS[storeId] || {
+      freshnessScore: 4.8,
+      handoffSpeedScore: 4.8,
+      cleanlinessScore: 4.8,
+      reviews: [
+        {
+          id: "rev_default",
+          customerName: "Verified Shopper",
+          rating: 5,
+          date: "Recently",
+          comment: "Seamless pickup handoff with 4-digit verification code. Dispatch rider was cleared immediately.",
+          verifiedPickup: true,
+          userType: "Customer",
+        },
+      ],
+    }
+  );
+}
+
 export function getProductById(id: string): Product | undefined {
   return getProducts().find((p) => p.id === id || p.slug === id);
 }
 
+export function getStores(): Store[] {
+  const products = getProducts();
+  return STORES.map((s) => ({
+    ...s,
+    totalDeals: products.filter((p) => p.storeId === s.id).length,
+  }));
+}
+
 export function getStoreById(id: string): Store | undefined {
-  return STORES.find((s) => s.id === id || s.slug === id);
+  return getStores().find((s) => s.id === id || s.slug === id);
 }
 
 export function getCategoryById(id: string): Category | undefined {

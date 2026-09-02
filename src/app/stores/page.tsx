@@ -8,22 +8,24 @@ import {
   MapPin, 
   Star, 
   Clock, 
-  Phone, 
   ArrowRight, 
-  Sparkles, 
   ShieldCheck,
   Search,
   ArrowLeft
 } from "lucide-react";
-import { STORES } from "@/lib/data";
+import { getStores } from "@/lib/data";
+import { Store } from "@/lib/types";
+import { StoreReviewsModal } from "@/components/StoreReviewsModal";
 
 export default function StoresDirectoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArea, setSelectedArea] = useState("all");
+  const [reviewStore, setReviewStore] = useState<Store | null>(null);
 
+  const stores = getStores();
   const areas = ["all", "Wuse II", "Central Area", "Jahi", "Jabi"];
 
-  const filteredStores = STORES.filter((store) => {
+  const filteredStores = stores.filter((store) => {
     const matchesArea = selectedArea === "all" || store.area === selectedArea;
     const matchesSearch =
       store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -48,14 +50,14 @@ export default function StoresDirectoryPage() {
 
           <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-black">
             <Building2 className="w-3.5 h-3.5" />
-            <span>ABUJA / FCT PICKUP HUBS</span>
+            <span>CERTIFIED PARTNER SUPERMARKETS</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
-            Verified Supermarket Pickup Locations
+            Supermarket Pickup Locations
           </h1>
           <p className="text-sm sm:text-base text-emerald-200/80 max-w-2xl font-medium leading-relaxed">
-            Every store on Stillgood features a dedicated customer care counter with temperature-controlled holding bins for ambient, chilled, and frozen groceries.
+            Order online and pick up at the store or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the customer care desk.
           </p>
         </div>
       </div>
@@ -88,7 +90,7 @@ export default function StoresDirectoryPage() {
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                {area === "all" ? "All Abuja Areas" : area}
+                {area === "all" ? "All Areas" : area}
               </button>
             ))}
           </div>
@@ -114,10 +116,15 @@ export default function StoresDirectoryPage() {
                   <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-black px-2.5 py-1 rounded-xl">
                     {store.area}
                   </div>
-                  <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md text-slate-900 text-xs font-black px-2.5 py-1 rounded-xl shadow-xs flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setReviewStore(store)}
+                    className="absolute top-3 right-3 bg-white/95 backdrop-blur-md text-slate-900 text-xs font-black px-2.5 py-1 rounded-xl shadow-xs flex items-center gap-1 hover:bg-emerald-50 hover:text-emerald-800 transition-colors cursor-pointer"
+                    title="Read customer reviews"
+                  >
                     <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                     <span>{store.rating} ({store.reviewCount})</span>
-                  </div>
+                  </button>
                 </div>
 
                 <div className="p-5 space-y-3">
@@ -136,14 +143,10 @@ export default function StoresDirectoryPage() {
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
                       <span>{store.openHours}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{store.phone}</span>
-                    </div>
                   </div>
 
                   <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl text-[11px] text-emerald-950">
-                    <strong>Pickup Counter:</strong> {store.pickupInstructions}
+                    <strong>Pickup Instructions:</strong> {store.pickupInstructions}
                   </div>
                 </div>
               </div>
@@ -163,6 +166,13 @@ export default function StoresDirectoryPage() {
         </div>
 
       </main>
+
+      {/* Reviews Modal */}
+      <StoreReviewsModal
+        store={reviewStore}
+        isOpen={!!reviewStore}
+        onClose={() => setReviewStore(null)}
+      />
 
     </div>
   );

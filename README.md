@@ -1,19 +1,21 @@
 # Stillgood 🛒🇳🇬
 
-> **Abuja's Near-Expiry Grocery Rescue Marketplace**  
-> Save 30%–75% on surplus and short-dated groceries from top supermarkets across Abuja/FCT. Pickup only.
+> **Nigeria's Near-Expiry Grocery Rescue Marketplace**  
+> Save 30%–75% on surplus and short-dated groceries from top verified supermarkets. Order online and pick up at the store or send a dispatch rider.
 
 ---
 
 ## 🌟 Overview
-**Stillgood** connects price-conscious shoppers and families in Abuja with verified supermarkets to buy high-quality groceries approaching their Best-Before or Expiry dates at steep discounts. 
+**Stillgood** connects price-conscious shoppers and families across Nigeria with verified supermarkets to buy high-quality groceries approaching their Best-Before or Expiry dates at steep discounts. 
 
 ### Highlights
-- 📍 **Abuja/FCT Pickup Only**: Collect orders directly at verified supermarkets in Wuse II, Maitama, Garki, Jabi, Utako, and Central Area.
+- 📍 **Store & Rider Pickup**: Order online and collect at store customer service counters or send any dispatch rider with your `SG-XXXXX` code and 4-digit PIN.
+- 🚚 **Multi-Store Hub Consolidation**: Orders spanning multiple partner stores are consolidated twice daily (12:00 PM and 5:00 PM batches) to your chosen central pickup hub.
 - 📉 **Weekly 2.5% Drift Pricing**: Automated price markdown algorithm that lowers prices by 2.5% every week as items approach their best-before date.
 - 🆔 **Order Number System**: Unique order codes formatted as `SG-XXXXX` (e.g. `SG-72941`) with 4-digit verification PINs for seamless store handoffs.
+- ⭐ **Verified Store Reviews**: Inspect ratings and real feedback from shoppers and dispatch riders.
 - 🍪 **Cookie-Backed Cart**: Fast, resilient cart session backed by cookies and Next.js Server Actions.
-- 🔍 **Live Autocomplete Search & Filters**: Instant search dropdown, store/category pills, and sort controls (Discount %, Price, Days Left).
+- 🔍 **Simplified Search & Filter Controls**: Clean category buttons, store selection, and Asc/Desc sort toggles across Price, Upload Time, Expiry, and Discount.
 
 ---
 
@@ -48,21 +50,22 @@ http://localhost:43147
 │   │   ├── globals.css
 │   │   ├── stores/
 │   │   ├── order/
-│   │   └── api/
+│   │   └── impact/
 │   ├── components/
 │   │   ├── Navbar.tsx
 │   │   ├── SearchAutocomplete.tsx
 │   │   ├── CategoryTiles.tsx
-│   │   ├── StoreSelector.tsx
+│   │   ├── StoreFilterBar.tsx
 │   │   ├── ProductCard.tsx
 │   │   ├── DriftPricingModal.tsx
+│   │   ├── StoreReviewsModal.tsx
 │   │   ├── CartDrawer.tsx
 │   │   └── CheckoutModal.tsx
 │   └── lib/
 │       ├── pricing.ts      # 2.5% weekly drift calculations & expiry urgency
 │       ├── fees.ts         # Platform fees & customer savings calculators
 │       ├── actions.ts      # Cookie-backed cart and order server actions
-│       ├── data.ts         # Mock Abuja stores, categories, and products
+│       ├── data.ts         # Mock stores, categories, products, and reviews
 │       └── utils.ts
 └── package.json
 ```
@@ -78,10 +81,11 @@ Items listed on Stillgood feature a dynamic price decay schedule:
 
 ---
 
-## 🇳🇬 Supported Abuja Pickup Hubs
-- **Grand Square Supermarket** – Central Business District
-- **H-Medix Pharmacy & Supermarket** – Wuse II & Gwarinpa
-- **Next Cash & Carry** – Jahi / Kado
-- **4U Supermarket (formerly Amigo)** – Wuse II
-- **Sahad Stores** – Central Area & Garki II
-- **Market Square** – Apo & Jabi Lake Mall
+## 🇳🇬 Certified Partner Supermarket Hubs
+- **Grand Square Supermarket & Bakery** – Central Business District, Abuja
+- **H-Medix Pharmacy & Supermarket** – Wuse II, Abuja
+- **Next Cash & Carry** – Jahi / Kado, Abuja
+- **4U Supermarket** – Wuse II, Abuja
+- **Sahad Stores** – Central Area, Abuja
+- **Market Square** – Jabi Lake Mall, Abuja
+- *Lagos (Coming Soon)*

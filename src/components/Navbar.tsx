@@ -10,10 +10,12 @@ import {
   Store as StoreIcon, 
   CheckCircle2,
   Menu,
-  X
+  X,
+  User,
+  ChevronDown
 } from "lucide-react";
 import { SearchAutocomplete } from "./SearchAutocomplete";
-import { STORES } from "@/lib/data";
+import { getStores } from "@/lib/data";
 import { formatNaira } from "@/lib/pricing";
 
 interface NavbarProps {
@@ -32,9 +34,12 @@ export function Navbar({
   onSelectStore,
 }: NavbarProps) {
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
+  const [isCityMenuOpen, setIsCityMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
-  const currentStore = STORES.find((s) => s.id === selectedStoreId);
+  const stores = getStores();
+  const currentStore = stores.find((s) => s.id === selectedStoreId);
 
   return (
     <>
@@ -44,13 +49,13 @@ export function Navbar({
           <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
             <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full text-[11px] font-semibold border border-emerald-500/30">
               <Sparkles className="w-3 h-3 text-emerald-400" />
-              ABUJA FCT
+              NIGERIA
             </span>
             <span className="hidden sm:inline text-emerald-200">
-              Pick up surplus & near-expiry groceries today at 30%–75% off.
+              Order online and pick up at the store or send a dispatch rider at 30%–75% off.
             </span>
             <span className="sm:hidden text-emerald-200">
-              Abuja Grocery Rescue • Pickup Only
+              Grocery Rescue • Store & Rider Pickup
             </span>
           </div>
 
@@ -64,7 +69,7 @@ export function Navbar({
               href="/stores"
               className="text-emerald-300 hover:text-white underline underline-offset-2 hidden md:inline"
             >
-              6 Verified Hubs
+              Partner Stores
             </Link>
           </div>
         </div>
@@ -73,11 +78,11 @@ export function Navbar({
       {/* Main Navigation Header */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-18 gap-4 sm:gap-6">
+          <div className="flex items-center justify-between h-18 gap-3 sm:gap-6">
             
-            {/* Logo */}
-            <div className="flex items-center gap-6">
-              <Link href="/" className="flex items-center gap-2 group">
+            {/* Logo & City Selector */}
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Link href="/" className="flex items-center gap-2 group shrink-0">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white shadow-md shadow-emerald-700/20 group-hover:scale-105 transition-transform">
                   <span className="font-black text-xl tracking-tighter">SG</span>
                 </div>
@@ -86,10 +91,57 @@ export function Navbar({
                     Stillgood
                   </span>
                   <span className="text-[10px] font-bold tracking-widest uppercase text-emerald-600 -mt-1">
-                    Abuja Marketplace
+                    Marketplace
                   </span>
                 </div>
               </Link>
+
+              {/* City Selector Pill with Lagos Disabled Option */}
+              <div className="relative hidden sm:block">
+                <button
+                  type="button"
+                  onClick={() => setIsCityMenuOpen(!isCityMenuOpen)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Abuja</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </button>
+
+                {isCityMenuOpen && (
+                  <div className="absolute left-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-3 py-1.5 border-b border-slate-100">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Select Location
+                      </p>
+                    </div>
+                    <div className="p-1.5 space-y-1">
+                      <button
+                        onClick={() => setIsCityMenuOpen(false)}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl bg-emerald-50 text-emerald-900 font-bold text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Abuja (Active - 6 Hubs)</span>
+                        </div>
+                      </button>
+
+                      <div
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl text-slate-400 font-semibold cursor-not-allowed bg-slate-50/50 opacity-60"
+                        title="Lagos marketplace launch in progress"
+                      >
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-slate-400" />
+                          <span>Lagos</span>
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                          Coming Soon
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Store Selector Pill (Desktop) */}
               <div className="relative hidden lg:block">
@@ -98,20 +150,18 @@ export function Navbar({
                   onClick={() => setIsStoreMenuOpen(!isStoreMenuOpen)}
                   className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-xs font-semibold text-slate-700 transition-all cursor-pointer shadow-2xs"
                 >
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <StoreIcon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span className="truncate max-w-[170px]">
-                    {currentStore ? currentStore.name : "All Abuja Hubs (6)"}
+                    {currentStore ? currentStore.name : "All Partner Stores"}
                   </span>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md font-bold">
-                    Pickup
-                  </span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
                 </button>
 
                 {isStoreMenuOpen && (
                   <div className="absolute left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                     <div className="px-4 py-2 border-b border-slate-100">
                       <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                        Choose Abuja Pickup Hub
+                        Choose Supermarket
                       </p>
                     </div>
                     <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
@@ -128,14 +178,14 @@ export function Navbar({
                       >
                         <div className="flex items-center gap-2">
                           <StoreIcon className="w-4 h-4 text-emerald-600" />
-                          <span>All Abuja Stores (All Hubs)</span>
+                          <span>All Partner Stores</span>
                         </div>
                         {selectedStoreId === "all" && (
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         )}
                       </button>
 
-                      {STORES.map((store) => (
+                      {stores.map((store) => (
                         <button
                           key={store.id}
                           onClick={() => {
@@ -183,8 +233,19 @@ export function Navbar({
                 className="hidden lg:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-700 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
               >
                 <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>Our Impact</span>
+                <span>Impact</span>
               </Link>
+
+              {/* User Profile / Login Button */}
+              <button
+                type="button"
+                onClick={() => setProfileModalOpen(true)}
+                className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition-all cursor-pointer shadow-2xs"
+                aria-label="User Profile"
+                title="Account & Order History"
+              >
+                <User className="w-4 h-4" />
+              </button>
 
               {/* Cart Drawer Trigger Button */}
               <button
@@ -225,7 +286,7 @@ export function Navbar({
           <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-5 space-y-3 shadow-lg animate-in slide-in-from-top-2">
             <div className="pb-2 border-b border-slate-100">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Abuja Pickup Hub
+                Partner Supermarket
               </p>
               <select
                 value={selectedStoreId}
@@ -235,8 +296,8 @@ export function Navbar({
                 }}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800"
               >
-                <option value="all">📍 All Abuja Hubs (All Stores)</option>
-                {STORES.map((s) => (
+                <option value="all">All Partner Stores</option>
+                {stores.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.area})
                   </option>
@@ -251,7 +312,7 @@ export function Navbar({
                 className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-700"
               >
                 <StoreIcon className="w-4 h-4 text-emerald-600" />
-                <span>All 6 Stores</span>
+                <span>Stores</span>
               </Link>
               <Link
                 href="/impact"
@@ -265,6 +326,39 @@ export function Navbar({
           </div>
         )}
       </header>
+
+      {/* Profile / Account Placeholder Modal */}
+      {profileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm"
+            onClick={() => setProfileModalOpen(false)}
+          />
+          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6 border border-slate-200 z-10 space-y-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-inner">
+              <User className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900">
+                Shopper & Rider Accounts
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Guest checkout is active. Full customer profile login, order history, and Stillgood Wallet will be available in the upcoming release.
+              </p>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200">
+              Orders are tracked via your <strong>SG-XXXXX</strong> code and 4-digit pickup PIN.
+            </div>
+            <button
+              type="button"
+              onClick={() => setProfileModalOpen(false)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
+            >
+              Continue Shopping
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

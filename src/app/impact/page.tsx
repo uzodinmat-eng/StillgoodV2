@@ -36,7 +36,7 @@ export default function ImpactPage() {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
-            Fighting Grocery Inflation & Retail Food Waste in Abuja
+            Fighting Grocery Inflation & Retail Food Waste in Nigeria
           </h1>
           <p className="text-sm sm:text-base text-emerald-200/80 font-medium leading-relaxed max-w-2xl">
             Across Nigerian cities, tons of safe, packaged food is discarded weekly due to rigid supermarket rotation schedules. Stillgood connects conscious shoppers directly to surplus stock.
@@ -56,7 +56,7 @@ export default function ImpactPage() {
               ₦4,850,000+
             </p>
             <p className="text-xs text-slate-500 font-medium pt-1">
-              Direct cash saved by Abuja households.
+              Direct cash saved by Nigerian households.
             </p>
           </div>
 
@@ -74,13 +74,13 @@ export default function ImpactPage() {
 
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-1">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Abuja Orders Completed
+              Verified Orders Completed
             </span>
             <p className="text-3xl font-black text-amber-600">
               1,280+
             </p>
             <p className="text-xs text-slate-500 font-medium pt-1">
-              Seamless in-store pickup verifications.
+              Seamless in-store & rider pickup verifications.
             </p>
           </div>
         </div>
@@ -128,7 +128,7 @@ export default function ImpactPage() {
             href="/"
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-700/20 transition-all"
           >
-            <span>Start Rescuing Groceries in Abuja</span>
+            <span>Start Rescuing Groceries in Nigeria</span>
           </Link>
         </div>
 

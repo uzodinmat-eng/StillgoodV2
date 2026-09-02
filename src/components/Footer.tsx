@@ -1,9 +1,11 @@
 import React from "react";
 import Link from "next/link";
-import { Sparkles, MapPin, ShieldCheck, Heart, Store } from "lucide-react";
-import { STORES } from "@/lib/data";
+import { ShieldCheck, MapPin } from "lucide-react";
+import { getStores } from "@/lib/data";
 
 export function Footer() {
+  const stores = getStores();
+
   return (
     <footer className="mt-auto bg-slate-900 text-slate-300 border-t border-slate-800">
       
@@ -16,10 +18,10 @@ export function Footer() {
             </div>
             <div>
               <p className="text-xs font-black text-white uppercase tracking-wider">
-                Stillgood Abuja Marketplace
+                Stillgood Marketplace
               </p>
               <p className="text-[11px] text-emerald-200/80">
-                Rescuing short-dated groceries across the Federal Capital Territory.
+                Rescuing short-dated groceries across Nigeria with verified store and dispatch pickup.
               </p>
             </div>
           </div>
@@ -31,7 +33,7 @@ export function Footer() {
             </div>
             <div className="flex items-center gap-1.5">
               <MapPin className="w-4 h-4 text-emerald-400" />
-              <span>Abuja Verified Hubs</span>
+              <span>Certified Partner Hubs</span>
             </div>
           </div>
         </div>
@@ -49,7 +51,7 @@ export function Footer() {
             <span className="text-base font-black text-white">Stillgood</span>
           </div>
           <p className="text-slate-400 leading-relaxed">
-            Nigeria&apos;s pioneering marketplace dedicated to eliminating retail food waste in Abuja. Premium surplus food at fair, decaying prices.
+            Nigeria&apos;s pioneering marketplace dedicated to eliminating retail food waste. Premium surplus food at fair, decaying prices.
           </p>
           <div className="pt-1 text-[11px] text-emerald-400 font-bold">
             Order Format: SG-XXXXX (Verified Pickup)
@@ -59,10 +61,10 @@ export function Footer() {
         {/* Col 2 */}
         <div className="space-y-2.5">
           <h4 className="font-bold text-white uppercase tracking-wider text-[11px]">
-            Verified Abuja Hubs
+            Partner Supermarkets
           </h4>
           <ul className="space-y-1.5 text-slate-400">
-            {STORES.map((s) => (
+            {stores.map((s) => (
               <li key={s.id}>
                 <Link href={`/stores/${s.slug}`} className="hover:text-emerald-400 transition-colors">
                   {s.name} ({s.area})
@@ -84,17 +86,19 @@ export function Footer() {
               </Link>
             </li>
             <li>
+              <Link href="/#hub-fulfillment" className="hover:text-emerald-400 transition-colors">
+                Multi-Store Hub Consolidation
+              </Link>
+            </li>
+            <li>
               <Link href="/impact" className="hover:text-emerald-400 transition-colors">
                 Food Rescue Impact Tracker
               </Link>
             </li>
             <li>
               <Link href="/stores" className="hover:text-emerald-400 transition-colors">
-                In-Store Pickup Safety Policy
+                Pickup & Dispatch Rider Safety Policy
               </Link>
-            </li>
-            <li>
-              <span className="text-slate-500">Merchant POS Portal (Coming Soon)</span>
             </li>
           </ul>
         </div>
@@ -102,10 +106,10 @@ export function Footer() {
         {/* Col 4 */}
         <div className="space-y-2.5">
           <h4 className="font-bold text-white uppercase tracking-wider text-[11px]">
-            Abuja Support & Safety
+            Support & Merchant Inquiries
           </h4>
           <p className="text-slate-400">
-            Have questions about an order or want to register an Abuja supermarket?
+            Have questions about an order or want to register your supermarket?
           </p>
           <p className="text-emerald-400 font-bold">
             📞 +234 800 STILLGOOD (784554)
@@ -120,7 +124,7 @@ export function Footer() {
       {/* Bottom Bar */}
       <div className="border-t border-slate-800 py-6 px-4 text-center text-xs text-slate-500">
         <p>
-          © {new Date().getFullYear()} Stillgood Nigeria. Made with care for Abuja households and zero food waste.
+          © {new Date().getFullYear()} Stillgood Nigeria. Made with care for Nigerian households and zero retail food waste.
         </p>
       </div>
 

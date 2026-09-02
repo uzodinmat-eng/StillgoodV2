@@ -138,7 +138,7 @@ export default function OrderConfirmationPage() {
             className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-emerald-700 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Abuja Marketplace</span>
+            <span>Back to Stillgood Marketplace</span>
           </Link>
 
           <button
@@ -314,9 +314,9 @@ export default function OrderConfirmationPage() {
           <div className="p-4 rounded-2xl bg-emerald-950 text-white flex items-start gap-3">
             <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
             <div className="text-xs">
-              <p className="font-bold text-emerald-100">Stillgood Abuja Pickup Guarantee</p>
+              <p className="font-bold text-emerald-100">Stillgood Verified Pickup Guarantee</p>
               <p className="text-emerald-300/80 mt-0.5 leading-relaxed font-medium">
-                Store staff have placed your items in the designated Stillgood Pickup Shelf. Inspect your groceries at the counter before sharing your 4-digit verification PIN to release payment.
+                Store staff have packed your order in the designated Stillgood Express area. Inspect your groceries in person or have your dispatch rider verify the package at the counter before sharing your 4-digit verification PIN to release payment.
               </p>
             </div>
           </div>

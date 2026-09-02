@@ -131,10 +131,24 @@ export function CheckoutModal({
 
           {/* Pickup Store Selection */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-emerald-600" />
-              <span>1. Verified Abuja Pickup Location</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-emerald-600" />
+                <span>1. Verified Pickup Location</span>
+              </label>
+            </div>
+
+            {/* Multi-Store Consolidation Callout */}
+            <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl text-[11px] text-emerald-950 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Multi-Store Consolidation Active</span>
+              </div>
+              <p className="leading-relaxed">
+                If your items originate from different partner supermarkets, our logistics fleet consolidates them in <strong>two daily batches (12:00 PM & 5:00 PM)</strong> at your selected primary hub below. Pick up in person or send any dispatch rider.
+              </p>
+            </div>
+
             <div className="space-y-2">
               {STORES.map((s) => {
                 const isSelected = storeId === s.id;

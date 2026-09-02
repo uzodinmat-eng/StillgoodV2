@@ -9,7 +9,7 @@ import {
   ShieldCheck, 
   Store, 
   ArrowRight,
-  Clock
+  Bike
 } from "lucide-react";
 
 interface HeroBannerProps {
@@ -30,7 +30,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full text-xs font-black tracking-wide uppercase">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Abuja Food Waste Rescue</span>
+            <span>Stillgood Marketplace</span>
           </div>
 
           <div className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-full text-xs font-black">
@@ -44,11 +44,11 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1]">
             Rescue Groceries. <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300">
-              Save 30% to 75% in Abuja.
+              Save 30% to 75% in Nigeria.
             </span>
           </h1>
-          <p className="text-sm sm:text-base lg:text-lg text-emerald-100/80 font-medium max-w-2xl leading-relaxed">
-            Buy certified surplus and near-expiry food from top Abuja supermarkets before it goes to waste. Order online and pick up at Grand Square, H-Medix, Next Cash & Carry, and Sahad Stores.
+          <p className="text-sm sm:text-base lg:text-lg text-emerald-100/90 font-medium max-w-2xl leading-relaxed">
+            Order online and pick up at the store or send a dispatch rider.
           </p>
         </div>
 
@@ -59,7 +59,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
             onClick={onExploreDeals}
             className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-2xl shadow-xl shadow-emerald-500/20 transition-all cursor-pointer hover:scale-102 active:scale-98"
           >
-            <span>Shop Today&apos;s Abuja Deals</span>
+            <span>Shop Today&apos;s Rescue Deals</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 
@@ -68,7 +68,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
             className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white font-bold text-xs sm:text-sm px-5 py-3.5 rounded-2xl border border-white/10 transition-all"
           >
             <Store className="w-4 h-4 text-emerald-400" />
-            <span>View 6 Pickup Hubs</span>
+            <span>View Partner Stores</span>
           </Link>
         </div>
 
@@ -76,11 +76,11 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 border-t border-white/10">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 shrink-0">
-              <MapPin className="w-4 h-4" />
+              <Bike className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white">Abuja Pickup Hubs</p>
-              <p className="text-[11px] text-emerald-200/70">Wuse II, Central Area, Jahi, Jabi</p>
+              <p className="text-xs font-bold text-white">Store & Rider Pickup</p>
+              <p className="text-[11px] text-emerald-200/70">Pick up or send any dispatch rider</p>
             </div>
           </div>
 
@@ -100,7 +100,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
             </div>
             <div>
               <p className="text-xs font-bold text-white">100% Food Inspected</p>
-              <p className="text-[11px] text-teal-200/70">NAFDAC compliant safety</p>
+              <p className="text-[11px] text-teal-200/70">Verified condition & seals</p>
             </div>
           </div>
         </div>

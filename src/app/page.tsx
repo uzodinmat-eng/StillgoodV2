@@ -13,25 +13,32 @@ import {
   ArrowRight,
   Flame,
   CheckCircle2,
-  PackageX
+  PackageX,
+  Truck,
+  Building2,
+  Star,
+  Bike
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { HeroBanner } from "@/components/HeroBanner";
 import { CategoryTiles } from "@/components/CategoryTiles";
-import { StoreFilterBar, SortOption } from "@/components/StoreFilterBar";
+import { StoreFilterBar, SortField, SortDirection } from "@/components/StoreFilterBar";
 import { ProductCard } from "@/components/ProductCard";
 import { DriftPricingModal } from "@/components/DriftPricingModal";
+import { StoreReviewsModal } from "@/components/StoreReviewsModal";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { Footer } from "@/components/Footer";
 
-import { getProducts, STORES, CATEGORIES } from "@/lib/data";
+import { getProducts, getStores } from "@/lib/data";
 import { Product, CartSummary, Store } from "@/lib/types";
 import { getCart } from "@/lib/actions";
 import { formatNaira } from "@/lib/pricing";
 
 export default function HomePage() {
   const [products] = useState<Product[]>(getProducts());
+  const stores = getStores();
+
   const [cartSummary, setCartSummary] = useState<CartSummary>({
     items: [],
     itemCount: 0,
@@ -43,16 +50,17 @@ export default function HomePage() {
     storesInvolved: [],
   });
 
-  // Filter States
+  // Filter & Sort States
   const [selectedStoreId, setSelectedStoreId] = useState<string>("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<SortOption>("discount_desc");
-  const [storageFilter, setStorageFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<SortField>("discount");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // Modals & Drawers
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [activeDriftProduct, setActiveDriftProduct] = useState<Product | null>(null);
+  const [reviewModalStore, setReviewModalStore] = useState<Store | null>(null);
 
   // Fetch cart on mount & on updates
   const refreshCart = async () => {
@@ -74,24 +82,33 @@ export default function HomePage() {
       .filter((product) => {
         if (selectedStoreId !== "all" && product.storeId !== selectedStoreId) return false;
         if (selectedCategoryId !== "all" && product.category !== selectedCategoryId) return false;
-        if (storageFilter !== "all" && product.storageCondition !== storageFilter) return false;
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "discount_desc") return b.discountPercent - a.discountPercent;
-        if (sortBy === "days_left_asc") return a.daysRemaining - b.daysRemaining;
-        if (sortBy === "price_asc") return a.currentPrice - b.currentPrice;
-        if (sortBy === "price_desc") return b.currentPrice - a.currentPrice;
-        if (sortBy === "newest") return new Date(b.listedAt).getTime() - new Date(a.listedAt).getTime();
-        return 0;
+        let diff = 0;
+        if (sortField === "price") {
+          diff = a.currentPrice - b.currentPrice;
+        } else if (sortField === "upload_time") {
+          diff = new Date(a.listedAt).getTime() - new Date(b.listedAt).getTime();
+        } else if (sortField === "expiry_time") {
+          diff = a.daysRemaining - b.daysRemaining;
+        } else if (sortField === "discount") {
+          diff = a.discountPercent - b.discountPercent;
+        }
+
+        return sortDirection === "asc" ? diff : -diff;
       });
-  }, [products, selectedStoreId, selectedCategoryId, storageFilter, sortBy]);
+  }, [products, selectedStoreId, selectedCategoryId, sortField, sortDirection]);
 
   const handleResetFilters = () => {
     setSelectedStoreId("all");
     setSelectedCategoryId("all");
-    setSortBy("discount_desc");
-    setStorageFilter("all");
+    setSortField("discount");
+    setSortDirection("desc");
+  };
+
+  const handleToggleSortDirection = () => {
+    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
   };
 
   const scrollToDeals = () => {
@@ -111,28 +128,61 @@ export default function HomePage() {
         onSelectStore={(sId) => setSelectedStoreId(sId)}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-8">
         
         {/* Hero Section */}
         <HeroBanner onExploreDeals={scrollToDeals} />
 
-        {/* Category Navigation Tiles */}
+        {/* Multi-Store Fulfillment Hubs Consolidation Banner */}
+        <section id="hub-fulfillment" className="bg-gradient-to-br from-emerald-900 via-slate-900 to-teal-950 rounded-3xl p-6 sm:p-8 text-white border border-emerald-700/40 shadow-xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-3 max-w-2xl">
+              <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-black uppercase">
+                <Truck className="w-3.5 h-3.5" />
+                <span>Multi-Store Consolidation</span>
+              </div>
+              
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                Ordering from multiple stores? We consolidate your bag.
+              </h2>
+              
+              <p className="text-xs sm:text-sm text-emerald-100/90 font-medium leading-relaxed">
+                If your cart contains items from multiple supermarkets, our fleet runs <strong>two daily consolidation batches</strong> to bring everything to your selected central pickup hub or dispatch location. No need to visit multiple stores.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 shrink-0 text-xs">
+              <div className="p-3.5 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md">
+                <p className="text-amber-300 font-black text-sm">Batch 1: 12:00 PM</p>
+                <p className="text-[11px] text-emerald-100/80 mt-0.5">Morning multi-store orders ready for afternoon pickup.</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md">
+                <p className="text-emerald-300 font-black text-sm">Batch 2: 5:00 PM</p>
+                <p className="text-[11px] text-emerald-100/80 mt-0.5">Afternoon multi-store orders ready for evening collection.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Category Navigation Tiles without icons */}
         <CategoryTiles
           selectedCategoryId={selectedCategoryId}
           onSelectCategory={(cId) => setSelectedCategoryId(cId)}
         />
 
-        {/* Filter & Sort Bar */}
+        {/* Filter & Simplified Sort Bar */}
         <div id="deals-section" className="pt-2">
           <StoreFilterBar
             selectedStoreId={selectedStoreId}
             onSelectStore={(sId) => setSelectedStoreId(sId)}
             selectedCategoryId={selectedCategoryId}
             onSelectCategory={(cId) => setSelectedCategoryId(cId)}
-            sortBy={sortBy}
-            onSortChange={(sort) => setSortBy(sort)}
-            storageFilter={storageFilter}
-            onStorageFilterChange={(storage) => setStorageFilter(storage)}
+            sortField={sortField}
+            onSortFieldChange={(f) => setSortField(f)}
+            sortDirection={sortDirection}
+            onToggleSortDirection={handleToggleSortDirection}
             totalResultsCount={filteredProducts.length}
             onResetFilters={handleResetFilters}
           />
@@ -186,7 +236,7 @@ export default function HomePage() {
             </h2>
 
             <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed font-medium">
-              Unlike normal supermarkets where short-dated goods sit at full price until they expire and end up in Abuja landfills, our merchant inventory decays automatically every 7 days. This ensures fast customer adoption, cheaper grocery bills, and zero food waste.
+              Unlike normal supermarkets where short-dated goods sit at full price until they expire and end up in Nigerian landfills, our merchant inventory decays automatically every 7 days. This ensures fast customer adoption, cheaper grocery bills, and zero food waste.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
@@ -214,15 +264,15 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Abuja Supermarket Hubs Quick Directory */}
+        {/* Partner Supermarkets Directory with Reviews modal triggers */}
         <section className="my-12">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-                Verified Abuja Supermarket Pickup Hubs
+                Verified Supermarket Pickup Locations
               </h2>
               <p className="text-xs text-slate-500 font-semibold">
-                Collect your Stillgood rescue bins directly at customer care counters across Abuja.
+                Order online and pick up at the store or send a dispatch rider with your SG-XXXXX code.
               </p>
             </div>
             <Link
@@ -235,41 +285,55 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {STORES.map((store) => (
+            {stores.map((store) => (
               <div
                 key={store.id}
-                onClick={() => setSelectedStoreId(store.id)}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer bg-white ${
+                className={`p-4 rounded-3xl border transition-all bg-white flex flex-col justify-between ${
                   selectedStoreId === store.id
                     ? "border-emerald-500 ring-2 ring-emerald-500/20 shadow-md"
                     : "border-slate-200/90 hover:border-emerald-300 hover:shadow-md"
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-slate-200">
-                    <Image
-                      src={store.image}
-                      alt={store.name}
-                      fill
-                      sizes="56px"
-                      className="object-cover"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                        {store.area}
-                      </span>
-                      <span className="text-xs font-bold text-slate-700">
-                        ★ {store.rating}
-                      </span>
+                <div>
+                  <div className="flex items-start gap-3">
+                    <div className="relative w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-slate-200">
+                      <Image
+                        src={store.image}
+                        alt={store.name}
+                        fill
+                        sizes="56px"
+                        className="object-cover"
+                      />
                     </div>
-                    <h4 className="text-xs font-black text-slate-900 mt-1 truncate">
-                      {store.name}
-                    </h4>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                      {store.address}
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                          {store.area}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReviewModalStore(store);
+                          }}
+                          className="text-xs font-bold text-slate-700 flex items-center gap-1 hover:text-emerald-800 hover:underline cursor-pointer"
+                          title="Read customer & rider reviews"
+                        >
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          <span>{store.rating} ({store.reviewCount})</span>
+                        </button>
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 mt-1 truncate">
+                        {store.name}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {store.address}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-2.5 rounded-xl bg-slate-50 text-[11px] text-slate-600 font-medium">
+                    <span className="font-bold text-slate-900">Pickup:</span> {store.pickupInstructions}
                   </div>
                 </div>
 
@@ -277,9 +341,13 @@ export default function HomePage() {
                   <span className="text-slate-500 font-medium">
                     {store.totalDeals} active surplus deals
                   </span>
-                  <span className="font-bold text-emerald-700">
-                    {selectedStoreId === store.id ? "Selected Hub" : "Filter By Store"}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStoreId(selectedStoreId === store.id ? "all" : store.id)}
+                    className="font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer text-xs"
+                  >
+                    {selectedStoreId === store.id ? "Showing Deals ✓" : "Filter By Store"}
+                  </button>
                 </div>
               </div>
             ))}
@@ -311,6 +379,13 @@ export default function HomePage() {
         product={activeDriftProduct}
         isOpen={!!activeDriftProduct}
         onClose={() => setActiveDriftProduct(null)}
+      />
+
+      {/* Store Reviews Modal */}
+      <StoreReviewsModal
+        store={reviewModalStore}
+        isOpen={!!reviewModalStore}
+        onClose={() => setReviewModalStore(null)}
       />
 
       {/* Footer */}
