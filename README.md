@@ -1,91 +1,92 @@
-# Stillgood 🛒🇳🇬
+# Stillgood
 
-> **Nigeria's Near-Expiry Grocery Rescue Marketplace**  
-> Save 30%–75% on surplus and short-dated groceries from top verified supermarkets. Order online and pick up at the store or send a dispatch rider.
+Nigeria's near-expiry grocery rescue marketplace. Save 30%–75% on short-dated stock from partner supermarkets. Order online, pick up at the store or send a dispatch rider.
 
----
-
-## 🌟 Overview
-**Stillgood** connects price-conscious shoppers and families across Nigeria with verified supermarkets to buy high-quality groceries approaching their Best-Before or Expiry dates at steep discounts. 
-
-### Highlights
-- 📍 **Store & Rider Pickup**: Order online and collect at store customer service counters or send any dispatch rider with your `SG-XXXXX` code and 4-digit PIN.
-- 🚚 **Multi-Store Hub Consolidation**: Orders spanning multiple partner stores are consolidated twice daily (12:00 PM and 5:00 PM batches) to your chosen central pickup hub.
-- 📉 **Weekly 2.5% Drift Pricing**: Automated price markdown algorithm that lowers prices by 2.5% every week as items approach their best-before date.
-- 🆔 **Order Number System**: Unique order codes formatted as `SG-XXXXX` (e.g. `SG-72941`) with 4-digit verification PINs for seamless store handoffs.
-- ⭐ **Verified Store Reviews**: Inspect ratings and real feedback from shoppers and dispatch riders.
-- 🍪 **Cookie-Backed Cart**: Fast, resilient cart session backed by cookies and Next.js Server Actions.
-- 🔍 **Simplified Search & Filter Controls**: Clean category buttons, store selection, and Asc/Desc sort toggles across Price, Upload Time, Expiry, and Discount.
+`SG-XXXXX` is the **order number** (e.g. `SG-72941`). The 4-digit PIN is the counter handoff. Neither is a login.
 
 ---
 
-## 🚀 Running Locally
+## Run locally
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Run the development server (configured on port 43147)
 npm run dev
-
-# 3. Open in your browser
-http://localhost:43147
 ```
+
+Open [http://localhost:43147](http://localhost:43147).
+
+**Buyer login (this build):** navbar user icon → `/account` → WhatsApp number → OTP **`123456`**. Guest checkout still works without an account. Wallet starts at ₦0.
 
 ---
 
-## 📂 Project Structure
+## What this repo does
+
+- Browse surplus deals with weekly **2.5% drift** pricing.
+- Filter by store and category. Sort by price, upload time, expiry, or discount (asc/desc).
+- Cookie cart and mocked Nigerian payment rails (Paystack / Flutterwave / transfer / wallet).
+- **Single-store cart:** pickup locked to that supermarket.
+- **Multi-store cart:** choose one hub; fleet runs **noon (12:00 PM)** and **evening (5:00 PM)** Lagos batches.
+- Pickup pass with order number + PIN. Rider or shopper can collect.
+- Buyer account: orders, savings, mocked Stillgood Wallet.
+- Store reviews modal. Lagos is listed as Coming Soon.
+
+Stack: Next.js App Router, TypeScript, Tailwind, cookies + server actions. No database and no live SMS/payments yet.
+
+---
+
+## Project structure
 
 ```
 ├── docs/
 │   ├── 01-product-spec.md
 │   ├── 02-data-model.md
 │   ├── 03-payments-and-wallet.md
-│   ├── 04-sprint-plan.md
+│   ├── 04-sprint-plan.md      ← what is done / what is next
 │   └── 05-open-questions.md
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx
 │   │   ├── page.tsx
-│   │   ├── globals.css
+│   │   ├── account/           # buyer home (server-loaded session)
 │   │   ├── stores/
-│   │   ├── order/
+│   │   ├── order/[id]/        # pickup pass
 │   │   └── impact/
 │   ├── components/
-│   │   ├── Navbar.tsx
-│   │   ├── SearchAutocomplete.tsx
-│   │   ├── CategoryTiles.tsx
-│   │   ├── StoreFilterBar.tsx
-│   │   ├── ProductCard.tsx
-│   │   ├── DriftPricingModal.tsx
+│   │   ├── Navbar.tsx         # user icon → /account
+│   │   ├── AuthModal.tsx
+│   │   ├── AccountView.tsx
+│   │   ├── CheckoutModal.tsx  # real consolidation + session prefill
 │   │   ├── StoreReviewsModal.tsx
-│   │   ├── CartDrawer.tsx
-│   │   └── CheckoutModal.tsx
+│   │   └── …
 │   └── lib/
-│       ├── pricing.ts      # 2.5% weekly drift calculations & expiry urgency
-│       ├── fees.ts         # Platform fees & customer savings calculators
-│       ├── actions.ts      # Cookie-backed cart and order server actions
-│       ├── data.ts         # Mock stores, categories, products, and reviews
-│       └── utils.ts
+│       ├── pricing.ts         # 2.5% weekly drift
+│       ├── fees.ts
+│       ├── fulfillment.ts     # single-store vs noon/evening batches
+│       ├── auth.ts            # OTP session (dev code 123456)
+│       ├── auth-utils.ts
+│       ├── actions.ts         # cart + createOrder
+│       ├── data.ts
+│       └── types.ts
 └── package.json
 ```
 
----
-
-## 💡 Pricing Drift Algorithm (`src/lib/pricing.ts`)
-Items listed on Stillgood feature a dynamic price decay schedule:
-- **Base Discount**: Initial markdown from retail (e.g., 30% off).
-- **Weekly Drift**: Additional 2.5% markdown per week elapsed since listing.
-- **Urgency Decay**: Enhanced markdown when fewer than 7 days remain until Best-Before date.
-- **Floor Protection**: Maximum allowed discount capped at 85% to preserve retail margin.
+See [`docs/04-sprint-plan.md`](docs/04-sprint-plan.md) for the next slice (`/staff/verify` or a product detail page). Ask before a database, live Paystack, or Termii.
 
 ---
 
-## 🇳🇬 Certified Partner Supermarket Hubs
-- **Grand Square Supermarket & Bakery** – Central Business District, Abuja
-- **H-Medix Pharmacy & Supermarket** – Wuse II, Abuja
-- **Next Cash & Carry** – Jahi / Kado, Abuja
-- **4U Supermarket** – Wuse II, Abuja
-- **Sahad Stores** – Central Area, Abuja
-- **Market Square** – Jabi Lake Mall, Abuja
-- *Lagos (Coming Soon)*
+## Drift pricing (`src/lib/pricing.ts`)
+
+- Base markdown from retail (e.g. 30% off).
+- Extra 2.5% off per week since listing.
+- Floor: max 85% off.
+
+---
+
+## Partner hubs (Abuja)
+
+- Grand Square — Central Area
+- H-Medix — Wuse II
+- Next Cash & Carry — Jahi
+- 4U Supermarket — Wuse II
+- Sahad Stores — Central Area
+- Market Square — Jabi
+- Lagos — Coming Soon
