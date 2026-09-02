@@ -15,7 +15,6 @@ import {
   ChevronDown
 } from "lucide-react";
 import { SearchAutocomplete } from "./SearchAutocomplete";
-import { AuthModal } from "./AuthModal";
 import { getStores } from "@/lib/data";
 import { formatNaira } from "@/lib/pricing";
 import { getSession } from "@/lib/auth";
@@ -39,7 +38,6 @@ export function Navbar({
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isCityMenuOpen, setIsCityMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
 
   const stores = getStores();
@@ -222,12 +220,12 @@ export function Navbar({
             </div>
 
             {/* Search Autocomplete Bar */}
-            <div className="flex-1 max-w-xl mx-auto">
+            <div className="flex-1 min-w-0 max-w-xl mx-auto">
               <SearchAutocomplete />
             </div>
 
-            {/* Right Action Icons & Cart */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            {/* Right Action Icons & Cart — z-20 so search overflow cannot swallow clicks */}
+            <div className="relative z-20 flex items-center gap-2 sm:gap-3 shrink-0">
               <Link
                 href="/stores"
                 className="hidden md:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-700 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
@@ -244,13 +242,17 @@ export function Navbar({
                 <span>Impact</span>
               </Link>
 
-              {customer ? (
-                <Link
-                  href="/account"
-                  className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:border-emerald-400 text-emerald-800 transition-all shadow-2xs"
-                  aria-label="Your account"
-                  title={customer.name}
-                >
+              <Link
+                href="/account"
+                className={`inline-flex items-center justify-center min-w-10 min-h-10 p-2.5 rounded-xl border transition-all shadow-2xs ${
+                  customer
+                    ? "border-emerald-200 bg-emerald-50 hover:border-emerald-400 text-emerald-800"
+                    : "border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800"
+                }`}
+                aria-label={customer ? "Your account" : "Log in"}
+                title={customer ? customer.name : "Log in"}
+              >
+                {customer ? (
                   <span className="text-[11px] font-black">
                     {customer.name
                       .split(" ")
@@ -259,18 +261,10 @@ export function Navbar({
                       .slice(0, 2)
                       .toUpperCase()}
                   </span>
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAuthOpen(true)}
-                  className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition-all cursor-pointer shadow-2xs"
-                  aria-label="Log in"
-                  title="Log in"
-                >
+                ) : (
                   <User className="w-4 h-4" />
-                </button>
-              )}
+                )}
+              </Link>
 
               {/* Cart Drawer Trigger Button */}
               <button
@@ -352,13 +346,6 @@ export function Navbar({
         )}
       </header>
 
-      <AuthModal
-        isOpen={authOpen}
-        onClose={() => setAuthOpen(false)}
-        onLoggedIn={() => {
-          getSession().then((session) => setCustomer(session)).catch(() => setCustomer(null));
-        }}
-      />
     </>
   );
 }
