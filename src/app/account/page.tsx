@@ -43,12 +43,18 @@ export default function AccountPage() {
   });
 
   const loadAccount = async () => {
-    const account = await getAccount();
-    setCustomer(account.customer);
-    setOrders(account.orders);
-    setSavingsTotal(account.savingsTotal);
-    setLoading(false);
-    if (!account.customer) setAuthOpen(true);
+    try {
+      const account = await getAccount();
+      setCustomer(account.customer);
+      setOrders(account.orders);
+      setSavingsTotal(account.savingsTotal);
+      if (!account.customer) setAuthOpen(true);
+    } catch {
+      setCustomer(null);
+      setAuthOpen(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const refreshCart = async () => {
