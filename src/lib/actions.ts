@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 import { getProductById, getProducts, getStoreById } from "./data";
 import { calculateOrderSummary } from "./fees";
 import { CartItem, CartSummary, Order, OrderItemRecord, PopulatedCartItem } from "./types";
+import {
+  getHubBatchForSlot,
+  isValidPickupSlot,
+  needsConsolidation,
+  toOriginStoreRefs,
+} from "./fulfillment";
 
 const CART_COOKIE_NAME = "stillgood_cart";
 const ORDERS_COOKIE_NAME = "stillgood_orders";
@@ -224,9 +230,37 @@ export async function createOrder(data: {
     return { success: false, error: "Your basket is empty." };
   }
 
-  const selectedStore = getStoreById(data.storeId) || cart.storesInvolved[0];
+  const consolidating = needsConsolidation(cart.storesInvolved);
+  const originStores = toOriginStoreRefs(cart.storesInvolved);
+
+  if (!consolidating) {
+    const origin = cart.storesInvolved[0];
+    if (!origin || data.storeId !== origin.id) {
+      return {
+        success: false,
+        error: "Pickup must be at the supermarket that holds your items.",
+      };
+    }
+  }
+
+  const selectedStore = getStoreById(data.storeId);
   if (!selectedStore) {
     return { success: false, error: "Please select a valid store for pickup." };
+  }
+
+  if (
+    !isValidPickupSlot({
+      consolidating,
+      pickupDate: data.pickupDate,
+      pickupTimeSlot: data.pickupTimeSlot,
+    })
+  ) {
+    return {
+      success: false,
+      error: consolidating
+        ? "That consolidation batch is no longer available. Choose the noon or evening window."
+        : "Please choose a valid pickup time window.",
+    };
   }
 
   const orderId = generateOrderNumber();
@@ -263,9 +297,12 @@ export async function createOrder(data: {
     status: "confirmed",
     paymentMethod: data.paymentMethod,
     paymentReference: `ref_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    pickupDate: data.pickupDate || new Date().toISOString().split("T")[0],
-    pickupTimeSlot: data.pickupTimeSlot || "4:00 PM – 7:00 PM",
+    pickupDate: data.pickupDate,
+    pickupTimeSlot: data.pickupTimeSlot,
     pickupVerificationCode: pickupPin,
+    requiresConsolidation: consolidating,
+    originStores,
+    hubBatch: getHubBatchForSlot(data.pickupTimeSlot, consolidating),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

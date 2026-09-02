@@ -73,7 +73,7 @@ export function ProductCard({
         <div className="absolute top-2.5 left-2.5 right-2.5 flex items-start justify-between gap-2 pointer-events-none">
           
           {/* Discount Ribbon */}
-          <div className="inline-flex items-center gap-1 bg-rose-600 text-white px-2.5 py-1 rounded-xl text-xs font-black shadow-md">
+          <div className="inline-flex items-center gap-1 bg-emerald-600 text-white px-2.5 py-1 rounded-xl text-xs font-black shadow-md">
             <TrendingDown className="w-3.5 h-3.5" />
             <span>-{product.discountPercent}%</span>
           </div>

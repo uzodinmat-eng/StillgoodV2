@@ -170,7 +170,9 @@ export function CartDrawer({
                         <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
                         <div>
                           <p className="text-xs font-black text-slate-900">
-                            Pickup Hub: {store.name}
+                            {cartSummary.storesInvolved.length > 1
+                              ? `From: ${store.name}`
+                              : `Pickup: ${store.name}`}
                           </p>
                           <p className="text-[11px] text-slate-500 font-medium">
                             {store.area} • {store.openHours}
@@ -258,12 +260,25 @@ export function CartDrawer({
                 })}
 
                 {/* Pickup Instructions Alert */}
-                <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs flex items-start gap-2.5">
-                  <MapPin className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <p className="text-amber-900 font-medium leading-relaxed">
-                    <strong>Abuja Pickup Only:</strong> Your items are packed into the Stillgood reservation bin at the supermarket. Present your 4-digit code at the pickup counter.
-                  </p>
-                </div>
+                {cartSummary.storesInvolved.length > 1 ? (
+                  <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs flex items-start gap-2.5">
+                    <Sparkles className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                    <p className="text-emerald-950 font-medium leading-relaxed">
+                      <strong>Multi-store basket:</strong> items from{" "}
+                      {cartSummary.storesInvolved.length} supermarkets will be
+                      consolidated in the noon or evening batch to one pickup hub.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs flex items-start gap-2.5">
+                    <MapPin className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                    <p className="text-amber-900 font-medium leading-relaxed">
+                      <strong>Direct pickup:</strong> collect at the store customer
+                      care desk, or send a dispatch rider with your SG-XXXXX code
+                      and 4-digit PIN.
+                    </p>
+                  </div>
+                )}
               </>
             )}
 

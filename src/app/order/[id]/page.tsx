@@ -7,23 +7,19 @@ import { useParams } from "next/navigation";
 import { 
   CheckCircle2, 
   MapPin, 
-  Calendar, 
   Clock, 
   ShieldCheck, 
   ArrowLeft, 
   Printer, 
-  Share2, 
-  Sparkles,
-  Phone,
-  QrCode,
+  Truck,
   Building2,
-  TrendingDown
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { Order } from "@/lib/types";
 import { getOrderById } from "@/lib/actions";
 import { formatNaira } from "@/lib/pricing";
 import { STORES } from "@/lib/data";
+import { hubBatchLabel } from "@/lib/fulfillment";
 
 export default function OrderConfirmationPage() {
   const params = useParams();
@@ -72,6 +68,11 @@ export default function OrderConfirmationPage() {
             pickupDate: new Date().toISOString().split("T")[0],
             pickupTimeSlot: "4:00 PM – 7:00 PM",
             pickupVerificationCode: "4921",
+            requiresConsolidation: false,
+            originStores: [
+              { id: defaultStore.id, name: defaultStore.name, area: defaultStore.area },
+            ],
+            hubBatch: null,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             items: [
@@ -192,7 +193,11 @@ export default function OrderConfirmationPage() {
             <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-2">
               <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wide">
                 <Building2 className="w-4 h-4 text-emerald-600" />
-                <span>Supermarket Pickup Location</span>
+                <span>
+                  {order.requiresConsolidation
+                    ? "Collect At Destination Hub"
+                    : "Supermarket Pickup Location"}
+                </span>
               </div>
               <p className="text-sm font-black text-slate-900">
                 {order.storeName}
@@ -221,6 +226,28 @@ export default function OrderConfirmationPage() {
             </div>
 
           </div>
+
+          {order.requiresConsolidation && (order.originStores?.length ?? 0) > 0 && (
+            <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 space-y-2">
+              <div className="flex items-center gap-2 text-teal-950 font-bold text-xs uppercase tracking-wide">
+                <Truck className="w-4 h-4 text-teal-700" />
+                <span>Hub Consolidation</span>
+              </div>
+              <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                Items were collected from{" "}
+                <strong>
+                  {order.originStores
+                    ?.map((store) => `${store.name} (${store.area})`)
+                    .join(", ")}
+                </strong>{" "}
+                and batched to this hub
+                {hubBatchLabel(order.hubBatch)
+                  ? ` via the ${hubBatchLabel(order.hubBatch)?.toLowerCase()}`
+                  : ""}
+                . Present SG-XXXXX and your PIN at the hub customer care desk, or send a dispatch rider.
+              </p>
+            </div>
+          )}
 
           {/* Customer & Payment Meta */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
@@ -273,6 +300,7 @@ export default function OrderConfirmationPage() {
                       </p>
                       <p className="text-[11px] text-slate-500">
                         Qty: {item.quantity} • {item.unit} • Best before {item.expiryDate}
+                        {order.requiresConsolidation ? ` • From ${item.storeName}` : ""}
                       </p>
                     </div>
                   </div>
