@@ -91,57 +91,74 @@ export interface CartSession {
 }
 ```
 
-### Customer (cookie session; phone OTP)
-```typescript
-export interface Customer {
-  id: string;
-  name: string;
-  phone: string; // normalized +234…
-  email: string;
-  walletBalance: number; // NGN; new accounts 0
-  createdAt: string;
-}
-```
-
-`SG-XXXXX` is the order id, not a login. Dev OTP is always `123456` (`src/lib/auth.ts`).
-
 ### Order
 ```typescript
-export type OrderStatus =
+export type OrderStatus = 
   | "pending_payment"
   | "confirmed"
   | "ready_for_pickup"
   | "picked_up"
   | "cancelled";
 
+export interface OrderItem {
+  productId: string;
+  productName: string;
+  brand: string;
+  unit: string;
+  price: number;
+  originalPrice: number;
+  quantity: number;
+  image: string;
+}
+
 export interface Order {
   id: string; // "SG-XXXXX"
-  customerId?: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-  storeId: string; // destination pickup hub
-  items: OrderItemRecord[];
-
+  storeId: string;
+  items: OrderItem[];
+  
+  // Financial Breakdown (in NGN)
   subtotal: number;
   platformFee: number;
   savingsTotal: number;
   total: number;
-
+  
+  // Status & Timestamps
   status: OrderStatus;
   paymentMethod: "paystack" | "flutterwave" | "bank_transfer" | "wallet";
   paymentReference: string;
-  pickupDate: string;
-  pickupTimeSlot: string;
-  pickupVerificationCode: string; // 4-digit PIN
-
-  requiresConsolidation?: boolean;
-  originStores?: { id: string; name: string; area: string }[];
-  hubBatch?: "noon" | "evening" | null;
-
+  pickupDate: string; // e.g. "2026-09-02"
+  pickupTimeSlot: string; // e.g. "4:00 PM - 7:00 PM"
+  pickupVerificationCode: string; // 4-digit code e.g. "4920"
+  
   createdAt: string;
   updatedAt: string;
 }
 ```
 
-Consolidation rules live in `src/lib/fulfillment.ts` (Lagos time, noon/evening cutoffs).
+---
+
+## Updates since original
+
+Added in code (`src/lib/types.ts`); original Order block above is unchanged.
+
+```typescript
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  walletBalance: number;
+  createdAt: string;
+}
+
+// Extra fields now on Order:
+// customerId?: string
+// requiresConsolidation?: boolean
+// originStores?: { id: string; name: string; area: string }[]
+// hubBatch?: "noon" | "evening" | null
+```
+
+`SG-XXXXX` is still the order id. Buyer session is phone OTP (`src/lib/auth.ts`; dev code `123456`). Consolidation rules: `src/lib/fulfillment.ts`.
