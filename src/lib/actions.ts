@@ -11,6 +11,7 @@ import {
   needsConsolidation,
   toOriginStoreRefs,
 } from "./fulfillment";
+import { debitWallet, getSession, updateCustomerProfile } from "./auth";
 
 const CART_COOKIE_NAME = "stillgood_cart";
 const ORDERS_COOKIE_NAME = "stillgood_orders";
@@ -263,6 +264,21 @@ export async function createOrder(data: {
     };
   }
 
+  const session = await getSession();
+
+  if (data.paymentMethod === "wallet") {
+    if (!session) {
+      return {
+        success: false,
+        error: "Log in to pay with Stillgood Wallet, or choose Paystack / transfer.",
+      };
+    }
+    const walletResult = await debitWallet(session.id, cart.total);
+    if (!walletResult.success) {
+      return { success: false, error: walletResult.error };
+    }
+  }
+
   const orderId = generateOrderNumber();
   const pickupPin = generatePickupPin();
 
@@ -282,6 +298,7 @@ export async function createOrder(data: {
 
   const order: Order = {
     id: orderId,
+    customerId: session?.id,
     customerName: data.customerName,
     customerEmail: data.customerEmail,
     customerPhone: data.customerPhone,
@@ -322,17 +339,25 @@ export async function createOrder(data: {
     }
   }
   orderList.unshift(order);
-  cookieStore.set(ORDERS_COOKIE_NAME, JSON.stringify(orderList.slice(0, 10)), {
+  cookieStore.set(ORDERS_COOKIE_NAME, JSON.stringify(orderList.slice(0, 20)), {
     path: "/",
     httpOnly: true,
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 30, // 30 days
   });
 
+  if (session) {
+    await updateCustomerProfile(session.id, {
+      name: data.customerName.trim() || session.name,
+      email: data.customerEmail.trim() || session.email,
+    });
+  }
+
   // Empty cart
   await saveRawCartItems([]);
 
   revalidatePath("/");
+  revalidatePath("/account");
   revalidatePath(`/order/${order.id}`);
 
   return { success: true, order };

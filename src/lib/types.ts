@@ -128,8 +128,18 @@ export interface OrderItemRecord {
   expiryDate: string;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  walletBalance: number;
+  createdAt: string;
+}
+
 export interface Order {
   id: string; // SG-XXXXX
+  customerId?: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;

@@ -13,9 +13,10 @@ import {
   User,
   Truck,
 } from "lucide-react";
-import { CartSummary } from "@/lib/types";
+import { CartSummary, Customer } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
 import { createOrder } from "@/lib/actions";
+import { getSession } from "@/lib/auth";
 import { STORES } from "@/lib/data";
 import {
   addCalendarDays,
@@ -47,9 +48,10 @@ export function CheckoutModal({
   const todayStr = getLagosDateString();
 
   const [storeId, setStoreId] = useState(originStore.id);
-  const [customerName, setCustomerName] = useState("Amina Bello");
-  const [customerEmail, setCustomerEmail] = useState("amina.bello@example.ng");
-  const [customerPhone, setCustomerPhone] = useState("+234 803 456 7890");
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [sessionCustomer, setSessionCustomer] = useState<Customer | null>(null);
   const [pickupDate, setPickupDate] = useState(() =>
     nextAvailablePickupDate(consolidating)
   );
@@ -76,6 +78,21 @@ export function CheckoutModal({
 
     const earliest = nextAvailablePickupDate(consolidating);
     setPickupDate((current) => (current < earliest ? earliest : current));
+
+    getSession()
+      .then((session) => {
+        setSessionCustomer(session);
+        if (session) {
+          setCustomerName((current) => current || session.name);
+          setCustomerEmail((current) => current || session.email);
+          setCustomerPhone((current) => current || session.phone);
+        } else {
+          setCustomerName((current) => current || "Amina Bello");
+          setCustomerEmail((current) => current || "amina.bello@example.ng");
+          setCustomerPhone((current) => current || "+234 803 456 7890");
+        }
+      })
+      .catch(() => setSessionCustomer(null));
   }, [isOpen, consolidating, originStore]);
 
   useEffect(() => {
@@ -101,6 +118,19 @@ export function CheckoutModal({
     if (!customerName || !customerPhone || !customerEmail) {
       setErrorMsg("Please provide your name, phone number, and email address.");
       return;
+    }
+
+    if (paymentMethod === "wallet") {
+      if (!sessionCustomer) {
+        setErrorMsg("Log in from the profile icon to pay with Stillgood Wallet.");
+        return;
+      }
+      if (sessionCustomer.walletBalance < cartSummary.total) {
+        setErrorMsg(
+          `Wallet balance is ${formatNaira(sessionCustomer.walletBalance)}. Choose Paystack or transfer for this order.`
+        );
+        return;
+      }
     }
 
     startTransition(async () => {
@@ -321,6 +351,16 @@ export function CheckoutModal({
               <span>3. Customer Contact (For SMS / Pickup Verification)</span>
             </label>
 
+            {sessionCustomer ? (
+              <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                Logged in as {sessionCustomer.name} ({sessionCustomer.phone}). This order will appear on your account as SG-XXXXX.
+              </p>
+            ) : (
+              <p className="text-[11px] text-slate-500 font-medium">
+                Guest checkout. Log in from the profile icon if you want this order saved to an account.
+              </p>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-bold text-slate-500 block mb-1">
@@ -377,7 +417,7 @@ export function CheckoutModal({
                 { id: "paystack", name: "Paystack", desc: "Cards, USSD, Transfer", icon: "💳" },
                 { id: "flutterwave", name: "Flutterwave", desc: "Barter, Verve, Visa", icon: "🦋" },
                 { id: "bank_transfer", name: "Direct Bank Transfer", desc: "Moniepoint / OPay", icon: "🏦" },
-                { id: "wallet", name: "Stillgood Wallet", desc: "Instant Escrow Pass", icon: "⚡" },
+                { id: "wallet", name: "Stillgood Wallet", desc: sessionCustomer ? `Balance ${formatNaira(sessionCustomer.walletBalance)}` : "Log in required", icon: "⚡" },
               ].map((m) => {
                 const isSelected = paymentMethod === m.id;
                 return (

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { 
   ShoppingBag, 
@@ -15,8 +15,11 @@ import {
   ChevronDown
 } from "lucide-react";
 import { SearchAutocomplete } from "./SearchAutocomplete";
+import { AuthModal } from "./AuthModal";
 import { getStores } from "@/lib/data";
 import { formatNaira } from "@/lib/pricing";
+import { getSession } from "@/lib/auth";
+import { Customer } from "@/lib/types";
 
 interface NavbarProps {
   cartItemCount: number;
@@ -36,10 +39,15 @@ export function Navbar({
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isCityMenuOpen, setIsCityMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [customer, setCustomer] = useState<Customer | null>(null);
 
   const stores = getStores();
   const currentStore = stores.find((s) => s.id === selectedStoreId);
+
+  useEffect(() => {
+    getSession().then((session) => setCustomer(session)).catch(() => setCustomer(null));
+  }, []);
 
   return (
     <>
@@ -236,16 +244,33 @@ export function Navbar({
                 <span>Impact</span>
               </Link>
 
-              {/* User Profile / Login Button */}
-              <button
-                type="button"
-                onClick={() => setProfileModalOpen(true)}
-                className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition-all cursor-pointer shadow-2xs"
-                aria-label="User Profile"
-                title="Account & Order History"
-              >
-                <User className="w-4 h-4" />
-              </button>
+              {customer ? (
+                <Link
+                  href="/account"
+                  className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:border-emerald-400 text-emerald-800 transition-all shadow-2xs"
+                  aria-label="Your account"
+                  title={customer.name}
+                >
+                  <span className="text-[11px] font-black">
+                    {customer.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </span>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAuthOpen(true)}
+                  className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 transition-all cursor-pointer shadow-2xs"
+                  aria-label="Log in"
+                  title="Log in"
+                >
+                  <User className="w-4 h-4" />
+                </button>
+              )}
 
               {/* Cart Drawer Trigger Button */}
               <button
@@ -327,38 +352,13 @@ export function Navbar({
         )}
       </header>
 
-      {/* Profile / Account Placeholder Modal */}
-      {profileModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm"
-            onClick={() => setProfileModalOpen(false)}
-          />
-          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6 border border-slate-200 z-10 space-y-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-inner">
-              <User className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900">
-                Shopper & Rider Accounts
-              </h3>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                Guest checkout is active. Full customer profile login, order history, and Stillgood Wallet will be available in the upcoming release.
-              </p>
-            </div>
-            <div className="p-3 bg-slate-50 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200">
-              Orders are tracked via your <strong>SG-XXXXX</strong> code and 4-digit pickup PIN.
-            </div>
-            <button
-              type="button"
-              onClick={() => setProfileModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
-            >
-              Continue Shopping
-            </button>
-          </div>
-        </div>
-      )}
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onLoggedIn={() => {
+          getSession().then((session) => setCustomer(session)).catch(() => setCustomer(null));
+        }}
+      />
     </>
   );
 }
