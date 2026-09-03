@@ -69,7 +69,9 @@ export async function attachGuestOrders(customerId: string, phone: string): Prom
   await execute(
     `update public.orders
      set customer_id = $1, updated_at = now()
-     where customer_id is null and customer_phone = $2`,
+     where customer_id is null
+       and regexp_replace(customer_phone, '[^0-9]', '', 'g')
+         = regexp_replace($2, '[^0-9]', '', 'g')`,
     [customerId, phone]
   );
 }

@@ -18,7 +18,6 @@ import confetti from "canvas-confetti";
 import { Order } from "@/lib/types";
 import { getOrderById } from "@/lib/actions";
 import { formatNaira } from "@/lib/pricing";
-import { STORES } from "@/lib/data";
 import { hubBatchLabel } from "@/lib/fulfillment";
 
 export default function OrderConfirmationPage() {
@@ -44,69 +43,9 @@ export default function OrderConfirmationPage() {
     async function loadOrder() {
       try {
         const found = await getOrderById(orderId);
-        if (found) {
-          setOrder(found);
-        } else {
-          // Mock fallback order matching SG-XXXXX format
-          const defaultStore = STORES[0];
-          setOrder({
-            id: orderId.startsWith("SG-") ? orderId : `SG-${orderId}`,
-            customerName: "Amina Bello",
-            customerEmail: "amina.bello@example.ng",
-            customerPhone: "+234 803 456 7890",
-            storeId: defaultStore.id,
-            storeName: defaultStore.name,
-            storeAddress: defaultStore.address,
-            storeArea: defaultStore.area,
-            subtotal: 14700,
-            platformFee: 250,
-            savingsTotal: 8300,
-            total: 14950,
-            status: "confirmed",
-            paymentMethod: "paystack",
-            paymentReference: `ref_${Date.now()}`,
-            pickupDate: new Date().toISOString().split("T")[0],
-            pickupTimeSlot: "4:00 PM – 7:00 PM",
-            pickupVerificationCode: "4921",
-            requiresConsolidation: false,
-            originStores: [
-              { id: defaultStore.id, name: defaultStore.name, area: defaultStore.area },
-            ],
-            hubBatch: null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            items: [
-              {
-                productId: "sg_prod_001",
-                productName: "Peak Full Cream Milk Powder (Refill Pack)",
-                brand: "Peak Milk",
-                unit: "850g Pouch",
-                price: 5525,
-                originalPrice: 8500,
-                quantity: 1,
-                image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=800&q=80",
-                storeId: defaultStore.id,
-                storeName: defaultStore.name,
-                expiryDate: "2026-09-12",
-              },
-              {
-                productId: "sg_prod_002",
-                productName: "Kellogg's Corn Flakes Original Family Pack",
-                brand: "Kellogg's",
-                unit: "750g Box",
-                price: 3720,
-                originalPrice: 6200,
-                quantity: 1,
-                image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=800&q=80",
-                storeId: defaultStore.id,
-                storeName: defaultStore.name,
-                expiryDate: "2026-09-08",
-              },
-            ],
-          });
-        }
+        setOrder(found);
       } catch {
-        // ignore
+        setOrder(null);
       } finally {
         setLoading(false);
       }
@@ -126,7 +65,25 @@ export default function OrderConfirmationPage() {
     );
   }
 
-  if (!order) return null;
+  if (!order) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 text-center space-y-3">
+          <h1 className="text-lg font-black text-slate-900">Pickup pass not found</h1>
+          <p className="text-xs text-slate-500">
+            {orderId} is not in the Stillgood order book. Check the SG-XXXXX on your confirmation, or place a new reservation.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to marketplace
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-emerald-500 selection:text-white py-8 px-4 sm:px-6 lg:px-8">

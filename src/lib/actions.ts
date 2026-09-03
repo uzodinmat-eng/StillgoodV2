@@ -12,6 +12,7 @@ import {
   toOriginStoreRefs,
 } from "./fulfillment";
 import { debitWallet, getSession, updateCustomerProfile } from "./auth";
+import { normalizeNgPhone } from "./auth-utils";
 import { findOrderById, insertOrder } from "./db/orders";
 
 const CART_COOKIE_NAME = "stillgood_cart";
@@ -261,6 +262,14 @@ export async function createOrder(data: {
     };
   }
 
+  const customerPhone = normalizeNgPhone(data.customerPhone);
+  if (!customerPhone) {
+    return {
+      success: false,
+      error: "Enter a valid Nigerian WhatsApp number (e.g. 0803 456 7890).",
+    };
+  }
+
   const session = await getSession();
 
   if (data.paymentMethod === "wallet") {
@@ -298,7 +307,7 @@ export async function createOrder(data: {
     customerId: session?.id,
     customerName: data.customerName,
     customerEmail: data.customerEmail,
-    customerPhone: data.customerPhone,
+    customerPhone,
     items: orderItems,
     storeId: selectedStore.id,
     storeName: selectedStore.name,
