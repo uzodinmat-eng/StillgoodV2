@@ -48,7 +48,9 @@ export function AuthModal({ isOpen, onClose, onLoggedIn }: AuthModalProps) {
       }
       onLoggedIn?.();
       onClose();
-      router.push("/account");
+      if (window.location.pathname !== "/account") {
+        router.push("/account");
+      }
       router.refresh();
     });
   };

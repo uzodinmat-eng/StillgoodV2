@@ -17,7 +17,7 @@ import { Navbar } from "@/components/Navbar";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { AuthModal } from "@/components/AuthModal";
-import { logout } from "@/lib/auth";
+import { getAccount, logout } from "@/lib/auth";
 import { getCart } from "@/lib/actions";
 import { CartSummary, Customer, Order } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
@@ -56,6 +56,24 @@ export function AccountView({
       .then(setCartSummary)
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    setCustomer(initialCustomer);
+    setOrders(initialOrders);
+    setSavingsTotal(initialSavingsTotal);
+    if (initialCustomer) setAuthOpen(false);
+  }, [initialCustomer, initialOrders, initialSavingsTotal]);
+
+  const applyAccount = (account: {
+    customer: Customer | null;
+    orders: Order[];
+    savingsTotal: number;
+  }) => {
+    setCustomer(account.customer);
+    setOrders(account.orders);
+    setSavingsTotal(account.savingsTotal);
+    if (account.customer) setAuthOpen(false);
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -231,6 +249,9 @@ export function AccountView({
         onClose={() => setAuthOpen(false)}
         onLoggedIn={() => {
           setAuthOpen(false);
+          getAccount()
+            .then(applyAccount)
+            .catch(() => undefined);
           router.refresh();
         }}
       />
