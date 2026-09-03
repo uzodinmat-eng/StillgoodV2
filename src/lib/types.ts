@@ -161,6 +161,7 @@ export interface Order {
   pickupDate: string;
   pickupTimeSlot: string;
   pickupVerificationCode: string; // 4-digit PIN e.g. "7294"
+  pickedUpAt?: string;
 
   /** True when the cart spanned more than one partner supermarket. */
   requiresConsolidation?: boolean;

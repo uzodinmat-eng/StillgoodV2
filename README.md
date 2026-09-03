@@ -101,3 +101,4 @@ Added after the structure above; originals left as-is.
 - Checkout now enforces hub consolidation (not copy-only). See `src/lib/fulfillment.ts`.
 - Discount badge on product photos is green, not red.
 - Product detail: `/product/[slug]` (`src/app/product/[slug]/`, `src/components/ProductDetailView.tsx`). Marketplace cards, search, and basket item names open it.
+- Database: PostgreSQL SQL in `supabase/` (migrations + seed + RLS). Local PGlite until you set `DATABASE_URL` to Supabase. Customers and orders persist there. Cart and OTP stay cookies. See `supabase/README.md`.

@@ -45,4 +45,5 @@ Shipped on top of Sprint 2; Sprint 3–4 items are still upcoming.
 - Buyer login exists: navbar user icon → `/account`. WhatsApp OTP; **dev code is always `123456`**. Guest checkout still works. Account shows orders (`SG-XXXXX` is the order number only), savings, mocked wallet (₦0). Wallet pay requires login and sufficient balance.
 - `SG-XXXXX` remains the order labelling format, not a login method.
 - Product detail pages at `/product/[slug]`: photo, drift schedule, pickup store, NAFDAC/stock, quantity add-to-cart. Cards, search hits, and basket names link here. Related deals sit at the bottom.
-- Next slices still need a go-ahead. Ask before DB, live Paystack, Termii, or a merchant portal.
+- Postgres schema lives in `supabase/migrations/` + `supabase/seed.sql` so you can paste it into Supabase. Locally the app uses PGlite (same SQL) for **customers and orders**. Guest cart/OTP stay cookies. Set `DATABASE_URL` after upload.
+- Next slices still need a go-ahead. Ask before live Paystack, Termii, or a merchant portal.

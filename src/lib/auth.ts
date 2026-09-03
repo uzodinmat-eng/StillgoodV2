@@ -4,62 +4,27 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { Customer, Order } from "./types";
 import { DEV_OTP_CODE, normalizeNgPhone } from "./auth-utils";
+import {
+  attachGuestOrders,
+  findCustomerById,
+  findCustomerByPhone,
+  insertCustomer,
+  saveCustomer,
+} from "./db/customers";
+import { findOrdersForCustomer } from "./db/orders";
 
-const CUSTOMERS_COOKIE = "stillgood_customers";
 const SESSION_COOKIE = "stillgood_session";
 const OTP_COOKIE = "stillgood_otp";
-const ORDERS_COOKIE = "stillgood_orders";
-
-async function readCustomers(): Promise<Customer[]> {
-  const store = await cookies();
-  const raw = store.get(CUSTOMERS_COOKIE)?.value;
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-async function writeCustomers(customers: Customer[]): Promise<void> {
-  const store = await cookies();
-  store.set(CUSTOMERS_COOKIE, JSON.stringify(customers.slice(0, 50)), {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 90,
-  });
-}
-
-async function readOrders(): Promise<Order[]> {
-  const store = await cookies();
-  const raw = store.get(ORDERS_COOKIE)?.value;
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-async function writeOrders(orders: Order[]): Promise<void> {
-  const store = await cookies();
-  store.set(ORDERS_COOKIE, JSON.stringify(orders.slice(0, 20)), {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30,
-  });
-}
 
 export async function getSession(): Promise<Customer | null> {
   const store = await cookies();
   const customerId = store.get(SESSION_COOKIE)?.value;
   if (!customerId) return null;
-  const customers = await readCustomers();
-  return customers.find((c) => c.id === customerId) ?? null;
+  try {
+    return await findCustomerById(customerId);
+  } catch {
+    return null;
+  }
 }
 
 export async function requestOtp(
@@ -120,8 +85,7 @@ export async function verifyOtp(data: {
     return { success: false, error: "OTP session is invalid. Request a new code." };
   }
 
-  const customers = await readCustomers();
-  let customer = customers.find((c) => c.phone === phone);
+  let customer = await findCustomerByPhone(phone);
 
   if (!customer) {
     customer = {
@@ -132,23 +96,13 @@ export async function verifyOtp(data: {
       walletBalance: 0,
       createdAt: new Date().toISOString(),
     };
-    customers.unshift(customer);
+    await insertCustomer(customer);
   } else if (data.name?.trim()) {
     customer = { ...customer, name: data.name.trim() };
-    const idx = customers.findIndex((c) => c.id === customer!.id);
-    if (idx > -1) customers[idx] = customer;
+    await saveCustomer(customer);
   }
 
-  await writeCustomers(customers);
-
-  const orders = await readOrders();
-  const attached = orders.map((order) => {
-    if (normalizeNgPhone(order.customerPhone) === phone && !order.customerId) {
-      return { ...order, customerId: customer!.id };
-    }
-    return order;
-  });
-  await writeOrders(attached);
+  await attachGuestOrders(customer.id, phone);
 
   store.set(SESSION_COOKIE, customer.id, {
     path: "/",
@@ -176,35 +130,33 @@ export async function updateCustomerProfile(
   customerId: string,
   patch: Partial<Pick<Customer, "name" | "email" | "walletBalance">>
 ): Promise<Customer | null> {
-  const customers = await readCustomers();
-  const idx = customers.findIndex((c) => c.id === customerId);
-  if (idx < 0) return null;
-  customers[idx] = { ...customers[idx], ...patch };
-  await writeCustomers(customers);
-  return customers[idx];
+  const customer = await findCustomerById(customerId);
+  if (!customer) return null;
+  const next = { ...customer, ...patch };
+  await saveCustomer(next);
+  return next;
 }
 
 export async function debitWallet(
   customerId: string,
   amount: number
 ): Promise<{ success: boolean; customer?: Customer; error?: string }> {
-  const customers = await readCustomers();
-  const idx = customers.findIndex((c) => c.id === customerId);
-  if (idx < 0) {
+  const customer = await findCustomerById(customerId);
+  if (!customer) {
     return { success: false, error: "Please log in to pay with Stillgood Wallet." };
   }
-  if (customers[idx].walletBalance < amount) {
+  if (customer.walletBalance < amount) {
     return {
       success: false,
       error: "Wallet balance is too low for this order. Choose another payment rail.",
     };
   }
-  customers[idx] = {
-    ...customers[idx],
-    walletBalance: customers[idx].walletBalance - amount,
+  const next = {
+    ...customer,
+    walletBalance: customer.walletBalance - amount,
   };
-  await writeCustomers(customers);
-  return { success: true, customer: customers[idx] };
+  await saveCustomer(next);
+  return { success: true, customer: next };
 }
 
 export async function getAccount(): Promise<{
@@ -217,12 +169,10 @@ export async function getAccount(): Promise<{
     return { customer: null, orders: [], savingsTotal: 0 };
   }
 
-  const orders = (await readOrders()).filter(
-    (order) =>
-      order.customerId === customer.id ||
-      normalizeNgPhone(order.customerPhone) === customer.phone
-  );
-
+  const orders = await findOrdersForCustomer({
+    customerId: customer.id,
+    phone: customer.phone,
+  });
   const savingsTotal = orders.reduce((sum, order) => sum + (order.savingsTotal || 0), 0);
 
   return { customer, orders, savingsTotal };

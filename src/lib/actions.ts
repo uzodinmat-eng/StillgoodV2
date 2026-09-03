@@ -12,9 +12,9 @@ import {
   toOriginStoreRefs,
 } from "./fulfillment";
 import { debitWallet, getSession, updateCustomerProfile } from "./auth";
+import { findOrderById, insertOrder } from "./db/orders";
 
 const CART_COOKIE_NAME = "stillgood_cart";
-const ORDERS_COOKIE_NAME = "stillgood_orders";
 
 // Helper to safely parse cart from cookie
 async function getRawCartItems(): Promise<CartItem[]> {
@@ -210,9 +210,6 @@ function generatePickupPin(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-// In-memory order cache fallback
-const IN_MEMORY_ORDERS = new Map<string, Order>();
-
 /**
  * Server Action: Create Order from Cart and checkout form
  */
@@ -324,27 +321,15 @@ export async function createOrder(data: {
     updatedAt: new Date().toISOString(),
   };
 
-  // Save to in-memory map
-  IN_MEMORY_ORDERS.set(order.id, order);
-
-  // Save to orders cookie history
-  const cookieStore = await cookies();
-  const existingOrdersCookie = cookieStore.get(ORDERS_COOKIE_NAME);
-  let orderList: Order[] = [];
-  if (existingOrdersCookie?.value) {
-    try {
-      orderList = JSON.parse(existingOrdersCookie.value);
-    } catch {
-      orderList = [];
+  try {
+    await insertOrder(order);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/unique|duplicate|orders_pkey/i.test(message)) {
+      return { success: false, error: "That order number was just taken. Confirm again." };
     }
+    throw error;
   }
-  orderList.unshift(order);
-  cookieStore.set(ORDERS_COOKIE_NAME, JSON.stringify(orderList.slice(0, 20)), {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-  });
 
   if (session) {
     await updateCustomerProfile(session.id, {
@@ -367,24 +352,6 @@ export async function createOrder(data: {
  * Server Action: Retrieve Order by ID
  */
 export async function getOrderById(orderId: string): Promise<Order | null> {
-  if (IN_MEMORY_ORDERS.has(orderId)) {
-    return IN_MEMORY_ORDERS.get(orderId)!;
-  }
-
-  const cookieStore = await cookies();
-  const existingOrdersCookie = cookieStore.get(ORDERS_COOKIE_NAME);
-  if (existingOrdersCookie?.value) {
-    try {
-      const orderList: Order[] = JSON.parse(existingOrdersCookie.value);
-      const found = orderList.find((o) => o.id === orderId);
-      if (found) {
-        IN_MEMORY_ORDERS.set(orderId, found);
-        return found;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  return null;
+  const normalized = orderId.trim().toUpperCase();
+  return findOrderById(normalized);
 }

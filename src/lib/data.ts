@@ -780,6 +780,20 @@ export function getStoreReviews(storeId: string): StoreReviewData {
   );
 }
 
+/**
+ * Catalog seed source for `npm run db:generate-seed` → supabase/seed.sql.
+ * Client UI still reads this module; Postgres is the source of truth for
+ * customers and orders. After upload, set DATABASE_URL to the Supabase URI.
+ */
+export function getCatalogSeed() {
+  return {
+    stores: STORES,
+    categories: CATEGORIES,
+    products: RAW_PRODUCTS,
+    reviews: STORE_REVIEWS,
+  };
+}
+
 export function getProductById(id: string): Product | undefined {
   return getProducts().find((p) => p.id === id || p.slug === id);
 }

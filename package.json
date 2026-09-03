@@ -6,7 +6,10 @@
     "dev": "next dev -p 43147",
     "build": "next build",
     "start": "next start -p 43147",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate-seed": "tsx scripts/generate-seed.ts",
+    "db:reset": "rm -rf .data && npm run db:generate-seed",
+    "db:smoke": "tsx scripts/db-smoke.ts"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
@@ -15,7 +18,9 @@
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "postgres": "^3.4.7",
+    "@electric-sql/pglite": "^0.3.14"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -26,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
+    "tsx": "^4.20.5",
     "typescript": "^5"
   }
 }

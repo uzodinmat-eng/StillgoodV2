@@ -162,3 +162,5 @@ export interface Customer {
 ```
 
 `SG-XXXXX` is still the order id. Buyer session is phone OTP (`src/lib/auth.ts`; dev code `123456`). Consolidation rules: `src/lib/fulfillment.ts`.
+
+Postgres tables (Supabase-ready) are in `supabase/migrations/20260903100000_init.sql`. Catalog seed is generated from this file via `npm run db:generate-seed`. Customers and orders are stored in Postgres/PGlite; the guest cart remains a cookie.
