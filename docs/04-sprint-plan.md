@@ -44,4 +44,5 @@ Shipped on top of Sprint 2; Sprint 3–4 items are still upcoming.
 - Product image discount badge is emerald (still `-X%` + down arrow), not red.
 - Buyer login exists: navbar user icon → `/account`. WhatsApp OTP; **dev code is always `123456`**. Guest checkout still works. Account shows orders (`SG-XXXXX` is the order number only), savings, mocked wallet (₦0). Wallet pay requires login and sufficient balance.
 - `SG-XXXXX` remains the order labelling format, not a login method.
-- Next lightweight slice still matches Sprint 3’s verification item: `/staff/verify` (enter `SG-XXXXX` + PIN). Product detail page is an extra option. Ask before DB, live Paystack, or Termii.
+- Product detail pages at `/product/[slug]`: photo, drift schedule, pickup store, NAFDAC/stock, quantity add-to-cart. Cards, search hits, and basket names link here. Related deals sit at the bottom.
+- Next slices still need a go-ahead. Ask before DB, live Paystack, Termii, or a merchant portal.

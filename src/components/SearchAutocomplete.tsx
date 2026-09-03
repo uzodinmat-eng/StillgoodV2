@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Search, X, TrendingDown, Store as StoreIcon, Sparkles } from "lucide-react";
 import { getProducts, STORES, CATEGORIES } from "@/lib/data";
 import { formatNaira } from "@/lib/pricing";
@@ -197,8 +198,9 @@ export function SearchAutocomplete({
                     {matchingProducts.map((product) => {
                       const store = STORES.find((s) => s.id === product.storeId);
                       return (
-                        <div
+                        <Link
                           key={product.id}
+                          href={`/product/${product.slug}`}
                           onClick={() => {
                             if (onSelectProduct) onSelectProduct(product);
                             setIsOpen(false);
@@ -230,7 +232,7 @@ export function SearchAutocomplete({
                           </div>
 
                           <div className="text-right shrink-0 ml-3">
-                            <span className="inline-flex items-center gap-0.5 bg-rose-50 text-rose-700 text-[11px] font-extrabold px-1.5 py-0.5 rounded-md border border-rose-200">
+                            <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 text-[11px] font-extrabold px-1.5 py-0.5 rounded-md border border-emerald-200">
                               <TrendingDown className="w-3 h-3" />
                               -{product.discountPercent}%
                             </span>
@@ -243,7 +245,7 @@ export function SearchAutocomplete({
                               </span>
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       );
                     })}
                   </div>

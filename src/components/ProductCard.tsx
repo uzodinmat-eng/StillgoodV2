@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { 
   ShoppingBag, 
   TrendingDown, 
@@ -57,7 +58,10 @@ export function ProductCard({
     <div className="group relative bg-white rounded-2xl border border-slate-200/90 hover:border-emerald-300 hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden">
       
       {/* Top Image Section */}
-      <div className="relative aspect-4/3 w-full bg-slate-100 overflow-hidden">
+      <Link
+        href={`/product/${product.slug}`}
+        className="relative aspect-4/3 w-full bg-slate-100 overflow-hidden block"
+      >
         <Image
           src={product.images[0]}
           alt={product.name}
@@ -93,7 +97,7 @@ export function ProductCard({
             </span>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* Card Body */}
       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
@@ -111,14 +115,14 @@ export function ProductCard({
             )}
           </div>
 
-          {/* Product Title */}
-          <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug line-clamp-2 group-hover:text-emerald-800 transition-colors">
-            {product.name}
-          </h3>
-
-          <p className="text-xs text-slate-500 mt-1 font-medium line-clamp-1">
-            Unit size: {product.unit} {product.conditionNotes ? `• ${product.conditionNotes}` : ""}
-          </p>
+          <Link href={`/product/${product.slug}`} className="block">
+            <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug line-clamp-2 group-hover:text-emerald-800 transition-colors">
+              {product.name}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 font-medium line-clamp-1">
+              Unit size: {product.unit} {product.conditionNotes ? `• ${product.conditionNotes}` : ""}
+            </p>
+          </Link>
         </div>
 
         {/* Expiry Urgency Pill */}

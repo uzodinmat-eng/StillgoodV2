@@ -100,3 +100,4 @@ Added after the structure above; originals left as-is.
 - New files: `src/lib/auth.ts`, `src/lib/auth-utils.ts`, `src/lib/fulfillment.ts`, `src/app/account/`, `src/components/AuthModal.tsx`, `src/components/AccountView.tsx`.
 - Checkout now enforces hub consolidation (not copy-only). See `src/lib/fulfillment.ts`.
 - Discount badge on product photos is green, not red.
+- Product detail: `/product/[slug]` (`src/app/product/[slug]/`, `src/components/ProductDetailView.tsx`). Marketplace cards, search, and basket item names open it.

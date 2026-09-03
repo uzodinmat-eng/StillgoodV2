@@ -784,6 +784,23 @@ export function getProductById(id: string): Product | undefined {
   return getProducts().find((p) => p.id === id || p.slug === id);
 }
 
+export function getRelatedProducts(product: Product, limit = 4): Product[] {
+  const others = getProducts().filter((p) => p.id !== product.id);
+  const sameStore = others.filter((p) => p.storeId === product.storeId);
+  const sameCategory = others.filter(
+    (p) => p.category === product.category && p.storeId !== product.storeId
+  );
+  const seen = new Set<string>();
+  const related: Product[] = [];
+  for (const candidate of [...sameStore, ...sameCategory, ...others]) {
+    if (seen.has(candidate.id)) continue;
+    seen.add(candidate.id);
+    related.push(candidate);
+    if (related.length >= limit) break;
+  }
+  return related;
+}
+
 export function getStores(): Store[] {
   const products = getProducts();
   return STORES.map((s) => ({

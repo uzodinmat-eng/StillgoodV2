@@ -187,7 +187,11 @@ export function CartDrawer({
                             key={item.product.id}
                             className="flex gap-3 p-3 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors"
                           >
-                            <div className="relative w-16 h-16 rounded-xl bg-white overflow-hidden shrink-0 border border-slate-200">
+                            <Link
+                              href={`/product/${item.product.slug}`}
+                              onClick={onClose}
+                              className="relative w-16 h-16 rounded-xl bg-white overflow-hidden shrink-0 border border-slate-200"
+                            >
                               <Image
                                 src={item.product.images[0]}
                                 alt={item.product.name}
@@ -195,14 +199,18 @@ export function CartDrawer({
                                 sizes="64px"
                                 className="object-cover"
                               />
-                            </div>
+                            </Link>
 
                             <div className="flex-1 min-w-0 flex flex-col justify-between">
                               <div>
                                 <div className="flex items-start justify-between gap-1">
-                                  <h4 className="text-xs font-bold text-slate-900 truncate">
+                                  <Link
+                                    href={`/product/${item.product.slug}`}
+                                    onClick={onClose}
+                                    className="text-xs font-bold text-slate-900 truncate hover:text-emerald-800"
+                                  >
                                     {item.product.name}
-                                  </h4>
+                                  </Link>
                                   <button
                                     type="button"
                                     onClick={() => handleRemove(item.product.id)}
