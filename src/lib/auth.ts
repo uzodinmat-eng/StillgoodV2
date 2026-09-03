@@ -58,7 +58,13 @@ export async function verifyOtp(data: {
   code: string;
   name?: string;
   email?: string;
-}): Promise<{ success: boolean; customer?: Customer; error?: string }> {
+}): Promise<{
+  success: boolean;
+  customer?: Customer;
+  orders?: Order[];
+  savingsTotal?: number;
+  error?: string;
+}> {
   const phone = normalizeNgPhone(data.phone);
   if (!phone) {
     return { success: false, error: "Invalid phone number." };
@@ -112,10 +118,16 @@ export async function verifyOtp(data: {
   });
   store.delete(OTP_COOKIE);
 
+  const orders = await findOrdersForCustomer({
+    customerId: customer.id,
+    phone: customer.phone,
+  });
+  const savingsTotal = orders.reduce((sum, order) => sum + (order.savingsTotal || 0), 0);
+
   revalidatePath("/");
   revalidatePath("/account");
 
-  return { success: true, customer };
+  return { success: true, customer, orders, savingsTotal };
 }
 
 export async function logout(): Promise<{ success: boolean }> {

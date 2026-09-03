@@ -5,11 +5,16 @@ import { useRouter } from "next/navigation";
 import { X, Smartphone, ShieldCheck, ArrowRight, User } from "lucide-react";
 import { requestOtp, verifyOtp } from "@/lib/auth";
 import { DEV_OTP_CODE } from "@/lib/auth-utils";
+import { Customer, Order } from "@/lib/types";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoggedIn?: () => void;
+  onLoggedIn?: (account: {
+    customer: Customer;
+    orders: Order[];
+    savingsTotal: number;
+  }) => void | Promise<void>;
 }
 
 export function AuthModal({ isOpen, onClose, onLoggedIn }: AuthModalProps) {
@@ -42,16 +47,19 @@ export function AuthModal({ isOpen, onClose, onLoggedIn }: AuthModalProps) {
     setErrorMsg(null);
     startTransition(async () => {
       const result = await verifyOtp({ phone, code, name });
-      if (!result.success) {
+      if (!result.success || !result.customer) {
         setErrorMsg(result.error || "Could not verify code.");
         return;
       }
-      onLoggedIn?.();
+      await onLoggedIn?.({
+        customer: result.customer,
+        orders: result.orders ?? [],
+        savingsTotal: result.savingsTotal ?? 0,
+      });
       onClose();
       if (window.location.pathname !== "/account") {
         router.push("/account");
       }
-      router.refresh();
     });
   };
 

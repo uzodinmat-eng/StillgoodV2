@@ -17,7 +17,7 @@ import { Navbar } from "@/components/Navbar";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { AuthModal } from "@/components/AuthModal";
-import { getAccount, logout } from "@/lib/auth";
+import { logout } from "@/lib/auth";
 import { getCart } from "@/lib/actions";
 import { CartSummary, Customer, Order } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
@@ -58,10 +58,11 @@ export function AccountView({
   }, []);
 
   useEffect(() => {
+    if (!initialCustomer) return;
     setCustomer(initialCustomer);
     setOrders(initialOrders);
     setSavingsTotal(initialSavingsTotal);
-    if (initialCustomer) setAuthOpen(false);
+    setAuthOpen(false);
   }, [initialCustomer, initialOrders, initialSavingsTotal]);
 
   const applyAccount = (account: {
@@ -69,10 +70,11 @@ export function AccountView({
     orders: Order[];
     savingsTotal: number;
   }) => {
+    if (!account.customer) return;
     setCustomer(account.customer);
     setOrders(account.orders);
     setSavingsTotal(account.savingsTotal);
-    if (account.customer) setAuthOpen(false);
+    setAuthOpen(false);
   };
 
   const handleLogout = async () => {
@@ -247,12 +249,8 @@ export function AccountView({
       <AuthModal
         isOpen={authOpen && !customer}
         onClose={() => setAuthOpen(false)}
-        onLoggedIn={() => {
-          setAuthOpen(false);
-          getAccount()
-            .then(applyAccount)
-            .catch(() => undefined);
-          router.refresh();
+        onLoggedIn={async (account) => {
+          applyAccount(account);
         }}
       />
     </div>
