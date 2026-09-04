@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Search, X, TrendingDown, Store as StoreIcon, Sparkles } from "lucide-react";
-import { getProducts, STORES, CATEGORIES } from "@/lib/data";
+import { useCategories, useProducts, useStores } from "@/components/CatalogProvider";
 import { formatNaira } from "@/lib/pricing";
 import { Product, Store, Category } from "@/lib/types";
 
@@ -26,14 +26,16 @@ export function SearchAutocomplete({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const products = getProducts();
+  const products = useProducts();
+  const stores = useStores();
+  const categories = useCategories();
 
   // Search results filtering
   const matchingProducts = query.trim()
     ? products
         .filter((p) => {
           const q = query.toLowerCase();
-          const store = STORES.find((s) => s.id === p.storeId);
+          const store = stores.find((s) => s.id === p.storeId);
           return (
             p.name.toLowerCase().includes(q) ||
             p.brand.toLowerCase().includes(q) ||
@@ -46,13 +48,13 @@ export function SearchAutocomplete({
     : [];
 
   const matchingCategories = query.trim()
-    ? CATEGORIES.filter((c) =>
+    ? categories.filter((c) =>
         c.name.toLowerCase().includes(query.toLowerCase())
       ).slice(0, 2)
     : [];
 
   const matchingStores = query.trim()
-    ? STORES.filter((s) =>
+    ? stores.filter((s) =>
         s.name.toLowerCase().includes(query.toLowerCase()) ||
         s.area.toLowerCase().includes(query.toLowerCase())
       ).slice(0, 2)
@@ -196,7 +198,7 @@ export function SearchAutocomplete({
                   </p>
                   <div className="space-y-1">
                     {matchingProducts.map((product) => {
-                      const store = STORES.find((s) => s.id === product.storeId);
+                      const store = stores.find((s) => s.id === product.storeId);
                       return (
                         <Link
                           key={product.id}

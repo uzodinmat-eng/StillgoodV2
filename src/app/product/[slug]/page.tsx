@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getProductById, getProducts, getRelatedProducts } from "@/lib/data";
 import { ProductDetailView } from "@/components/ProductDetailView";
+import {
+  findProductInCatalog,
+  relatedProductsInCatalog,
+} from "@/lib/catalog";
+import { loadCatalog } from "@/lib/db/catalog";
 
-export async function generateStaticParams() {
-  return getProducts().map((product) => ({ slug: product.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -13,7 +15,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductById(slug);
+  const catalog = await loadCatalog();
+  const product = findProductInCatalog(catalog, slug);
   if (!product) {
     return { title: "Deal not found | Stillgood" };
   }
@@ -29,12 +32,13 @@ export default async function ProductDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = getProductById(slug);
+  const catalog = await loadCatalog();
+  const product = findProductInCatalog(catalog, slug);
   if (!product) {
     notFound();
   }
 
-  const related = getRelatedProducts(product);
+  const related = relatedProductsInCatalog(catalog, product);
 
   return <ProductDetailView product={product} relatedProducts={related} />;
 }

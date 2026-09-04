@@ -23,7 +23,7 @@ import { DriftPricingModal } from "@/components/DriftPricingModal";
 import { ProductCard } from "@/components/ProductCard";
 import { Footer } from "@/components/Footer";
 import { addToCart, getCart } from "@/lib/actions";
-import { getCategoryById, getStoreById } from "@/lib/data";
+import { useCategoryById, useStoreById } from "@/components/CatalogProvider";
 import { CartSummary, Product } from "@/lib/types";
 import {
   calculateDriftPrice,
@@ -51,8 +51,8 @@ export function ProductDetailView({
   product,
   relatedProducts,
 }: ProductDetailViewProps) {
-  const store = getStoreById(product.storeId);
-  const category = getCategoryById(product.category);
+  const store = useStoreById(product.storeId);
+  const category = useCategoryById(product.category);
   const urgency = getUrgencyBadge(product.daysRemaining, product.dateType);
   const drift = calculateDriftPrice({
     originalPrice: product.originalPrice,

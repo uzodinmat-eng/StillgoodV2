@@ -65,7 +65,8 @@ http://localhost:43147
 │       ├── pricing.ts      # 2.5% weekly drift calculations & expiry urgency
 │       ├── fees.ts         # Platform fees & customer savings calculators
 │       ├── actions.ts      # Cookie-backed cart and order server actions
-│       ├── data.ts         # Mock stores, categories, products, and reviews
+│       ├── data.ts         # Catalog seed source (npm run db:generate-seed)
+│       └── db/catalog.ts   # Live stores/products/reviews from Postgres
 │       └── utils.ts
 └── package.json
 ```
@@ -94,11 +95,9 @@ Items listed on Stillgood feature a dynamic price decay schedule:
 
 ## Updates since original
 
-Added after the structure above; originals left as-is.
+`docs/01`–`docs/05` are the frozen product spec. Do not edit them. Implementation
+notes live in `docs/06-updates-since-original.md`.
 
-- Buyer login: navbar user icon goes to `/account`. **Email is the main login**; Google is optional. Customer WhatsApp OTP is removed. Guest checkout still works. `SG-XXXXX` is only the order number. Pickup PIN remains for store attendants.
-- New files: `src/lib/auth.ts`, `src/lib/auth-utils.ts`, `src/lib/fulfillment.ts`, `src/app/account/`, `src/components/AuthModal.tsx`, `src/components/AccountView.tsx`.
-- Checkout now enforces hub consolidation (not copy-only). See `src/lib/fulfillment.ts`.
-- Discount badge on product photos is green, not red.
-- Product detail: `/product/[slug]` (`src/app/product/[slug]/`, `src/components/ProductDetailView.tsx`). Marketplace cards, search, and basket item names open it.
-- Database: hosted Supabase when `DATABASE_URL` is set (session pooler). Local PGlite otherwise. Customers and orders persist in Postgres. Cart stays a cookie. See `supabase/README.md`.
+Shop catalog (stores, products, reviews) reads Postgres via `src/lib/db/catalog.ts`.
+`src/lib/data.ts` is seed-only. Buyer login is email + optional Google; guest
+checkout stays. `SG-XXXXX` is the order label only.

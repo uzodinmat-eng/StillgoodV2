@@ -1,4 +1,6 @@
-import { Category, Product, Store } from "./types";
+import { Category, Product, Store, StoreReview, StoreReviewData } from "./types";
+
+export type { StoreReview, StoreReviewData };
 import { calculateDriftPrice, generateDriftSchedule, getDaysRemaining } from "./pricing";
 
 export const STORES: Store[] = [
@@ -616,23 +618,6 @@ export function getProducts(): Product[] {
   });
 }
 
-export interface StoreReview {
-  id: string;
-  customerName: string;
-  rating: number;
-  date: string;
-  comment: string;
-  verifiedPickup: boolean;
-  userType: "Customer" | "Dispatch Rider";
-}
-
-export interface StoreReviewData {
-  freshnessScore: number;
-  handoffSpeedScore: number;
-  cleanlinessScore: number;
-  reviews: StoreReview[];
-}
-
 export const STORE_REVIEWS: Record<string, StoreReviewData> = {
   store_grand_square: {
     freshnessScore: 4.9,
@@ -782,8 +767,7 @@ export function getStoreReviews(storeId: string): StoreReviewData {
 
 /**
  * Catalog seed source for `npm run db:generate-seed` → supabase/seed.sql.
- * Client UI still reads this module; Postgres is the source of truth for
- * customers and orders. After upload, set DATABASE_URL to the Supabase URI.
+ * Shop and admin read live rows through `src/lib/db/catalog.ts`.
  */
 export function getCatalogSeed() {
   return {

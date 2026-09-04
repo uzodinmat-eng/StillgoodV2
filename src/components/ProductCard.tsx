@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Product, Store } from "@/lib/types";
 import { formatNaira, getUrgencyBadge } from "@/lib/pricing";
-import { STORES } from "@/lib/data";
+import { useStoreById } from "@/components/CatalogProvider";
 import { addToCart } from "@/lib/actions";
 
 interface ProductCardProps {
@@ -35,7 +35,7 @@ export function ProductCard({
   const [isAdded, setIsAdded] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
-  const store = STORES.find((s) => s.id === product.storeId);
+  const store = useStoreById(product.storeId);
   const urgency = getUrgencyBadge(product.daysRemaining, product.dateType);
 
   const handleAddToCart = (e: React.FormEvent) => {

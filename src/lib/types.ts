@@ -2,6 +2,23 @@ export type DateType = "best_before" | "use_by" | "expiry";
 
 export type UrgencyLevel = "critical" | "urgent" | "moderate" | "safe";
 
+export interface StoreReview {
+  id: string;
+  customerName: string;
+  rating: number;
+  date: string;
+  comment: string;
+  verifiedPickup: boolean;
+  userType: "Customer" | "Dispatch Rider";
+}
+
+export interface StoreReviewData {
+  freshnessScore: number;
+  handoffSpeedScore: number;
+  cleanlinessScore: number;
+  reviews: StoreReview[];
+}
+
 export interface Store {
   id: string;
   name: string;

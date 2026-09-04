@@ -13,7 +13,7 @@ import {
   Search,
   ArrowLeft
 } from "lucide-react";
-import { getStores } from "@/lib/data";
+import { useStores } from "@/components/CatalogProvider";
 import { Store } from "@/lib/types";
 import { StoreReviewsModal } from "@/components/StoreReviewsModal";
 
@@ -22,7 +22,7 @@ export default function StoresDirectoryPage() {
   const [selectedArea, setSelectedArea] = useState("all");
   const [reviewStore, setReviewStore] = useState<Store | null>(null);
 
-  const stores = getStores();
+  const stores = useStores();
   const areas = ["all", "Wuse II", "Central Area", "Jahi", "Jabi"];
 
   const filteredStores = stores.filter((store) => {

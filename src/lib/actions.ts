@@ -2,7 +2,11 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { getProductById, getProducts, getStoreById } from "./data";
+import {
+  findProductInCatalog,
+  findStoreInCatalog,
+} from "./catalog";
+import { loadCatalog } from "./db/catalog";
 import { calculateOrderSummary } from "./fees";
 import { CartItem, CartSummary, Order, OrderItemRecord, PopulatedCartItem } from "./types";
 import {
@@ -49,14 +53,14 @@ async function saveRawCartItems(items: CartItem[]): Promise<void> {
  */
 export async function getCart(): Promise<CartSummary> {
   const rawItems = await getRawCartItems();
-  const products = getProducts();
+  const catalog = await loadCatalog();
   
   const populatedItems: PopulatedCartItem[] = [];
 
   for (const raw of rawItems) {
-    const product = products.find((p) => p.id === raw.productId);
+    const product = findProductInCatalog(catalog, raw.productId);
     if (product) {
-      const store = getStoreById(product.storeId);
+      const store = findStoreInCatalog(catalog, product.storeId);
       if (store) {
         const itemTotal = product.currentPrice * raw.quantity;
         const originalItemTotal = product.originalPrice * raw.quantity;
@@ -99,7 +103,8 @@ export async function addToCart(
     return { success: false, message: "Invalid product identifier" };
   }
 
-  const product = getProductById(productId);
+  const catalog = await loadCatalog();
+  const product = findProductInCatalog(catalog, productId);
   if (!product) {
     return { success: false, message: "Product not found" };
   }
@@ -150,7 +155,8 @@ export async function updateCartQuantity(
   if (quantity <= 0) {
     rawItems = rawItems.filter((item) => item.productId !== productId);
   } else {
-    const product = getProductById(productId);
+    const catalog = await loadCatalog();
+    const product = findProductInCatalog(catalog, productId);
     const maxStock = product ? product.stockQuantity : 99;
     const finalQty = Math.min(quantity, maxStock);
 
@@ -242,7 +248,8 @@ export async function createOrder(data: {
     }
   }
 
-  const selectedStore = getStoreById(data.storeId);
+  const catalog = await loadCatalog();
+  const selectedStore = findStoreInCatalog(catalog, data.storeId);
   if (!selectedStore) {
     return { success: false, error: "Please select a valid store for pickup." };
   }

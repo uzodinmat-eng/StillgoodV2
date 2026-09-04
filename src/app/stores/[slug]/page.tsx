@@ -14,7 +14,7 @@ import {
   Sparkles,
   TrendingDown
 } from "lucide-react";
-import { getStores, getProducts } from "@/lib/data";
+import { useProducts, useStores } from "@/components/CatalogProvider";
 import { ProductCard } from "@/components/ProductCard";
 import { DriftPricingModal } from "@/components/DriftPricingModal";
 import { StoreReviewsModal } from "@/components/StoreReviewsModal";
@@ -23,12 +23,20 @@ import { Product } from "@/lib/types";
 export default function StoreDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
-  const stores = getStores();
+  const stores = useStores();
   const store = stores.find((s) => s.slug === slug || s.id === slug) || stores[0];
 
-  const products = getProducts().filter((p) => p.storeId === store.id);
+  const products = useProducts().filter((p) => store && p.storeId === store.id);
   const [activeDriftProduct, setActiveDriftProduct] = useState<Product | null>(null);
   const [reviewsOpen, setReviewsOpen] = useState(false);
+
+  if (!store) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-slate-500">
+        Loading store…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-emerald-500 selection:text-white pb-12">

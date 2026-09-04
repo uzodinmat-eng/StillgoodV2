@@ -17,7 +17,7 @@ import { CartSummary, Customer } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
 import { createOrder } from "@/lib/actions";
 import { getSession } from "@/lib/auth";
-import { STORES } from "@/lib/data";
+import { useStores } from "@/components/CatalogProvider";
 import {
   addCalendarDays,
   getAvailablePickupSlots,
@@ -43,11 +43,12 @@ export function CheckoutModal({
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const stores = useStores();
   const consolidating = needsConsolidation(cartSummary.storesInvolved);
-  const originStore = cartSummary.storesInvolved[0] || STORES[0];
+  const originStore = cartSummary.storesInvolved[0] || stores[0];
   const todayStr = getLagosDateString();
 
-  const [storeId, setStoreId] = useState(originStore.id);
+  const [storeId, setStoreId] = useState(originStore?.id || "");
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -233,7 +234,7 @@ export function CheckoutModal({
                 </div>
 
                 <div className="space-y-2">
-                  {STORES.map((s) => {
+                  {stores.map((s) => {
                     const isSelected = storeId === s.id;
                     const isOrigin = cartSummary.storesInvolved.some(
                       (store) => store.id === s.id
@@ -283,14 +284,18 @@ export function CheckoutModal({
             ) : (
               <div className="p-3 rounded-2xl border border-emerald-400 bg-emerald-50 ring-2 ring-emerald-500/20">
                 <p className="text-xs font-bold text-slate-900">
-                  {originStore.name}
+                  {originStore?.name || "Pickup store"}
                 </p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  {originStore.address} ({originStore.area})
+                  {originStore
+                    ? `${originStore.address} (${originStore.area})`
+                    : "Select a partner supermarket"}
                 </p>
-                <p className="text-[10px] font-semibold text-emerald-700 mt-1">
-                  Direct pickup · {originStore.openHours}
-                </p>
+                {originStore && (
+                  <p className="text-[10px] font-semibold text-emerald-700 mt-1">
+                    Direct pickup · {originStore.openHours}
+                  </p>
+                )}
               </div>
             )}
           </div>

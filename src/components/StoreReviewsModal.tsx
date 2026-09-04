@@ -3,7 +3,7 @@
 import React from "react";
 import { X, Star, ShieldCheck, CheckCircle2, User, Bike } from "lucide-react";
 import { Store } from "@/lib/types";
-import { getStoreReviews } from "@/lib/data";
+import { useStoreReviews } from "@/components/CatalogProvider";
 
 interface StoreReviewsModalProps {
   store: Store | null;
@@ -16,9 +16,9 @@ export function StoreReviewsModal({
   isOpen,
   onClose,
 }: StoreReviewsModalProps) {
-  if (!isOpen || !store) return null;
+  const reviewData = useStoreReviews(store?.id || "");
 
-  const reviewData = getStoreReviews(store.id);
+  if (!isOpen || !store) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">

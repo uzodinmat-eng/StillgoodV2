@@ -2,7 +2,7 @@
 
 import React from "react";
 import { SlidersHorizontal, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { getStores, CATEGORIES } from "@/lib/data";
+import { useCategories, useStores } from "@/components/CatalogProvider";
 
 export type SortField = "price" | "upload_time" | "expiry_time" | "discount";
 export type SortDirection = "asc" | "desc";
@@ -32,7 +32,8 @@ export function StoreFilterBar({
   totalResultsCount,
   onResetFilters,
 }: StoreFilterBarProps) {
-  const stores = getStores();
+  const stores = useStores();
+  const categories = useCategories();
   const isFiltered =
     selectedStoreId !== "all" ||
     selectedCategoryId !== "all" ||
@@ -119,7 +120,7 @@ export function StoreFilterBar({
               className="w-full bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 text-slate-900 text-xs font-semibold rounded-xl px-3 py-2.5 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer appearance-none pr-8"
             >
               <option value="all">All Categories</option>
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   {cat.name} ({cat.itemCount} items)
                 </option>

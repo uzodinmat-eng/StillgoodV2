@@ -1,10 +1,12 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
 import { ShieldCheck, MapPin } from "lucide-react";
-import { getStores } from "@/lib/data";
+import { useStores } from "@/components/CatalogProvider";
 
 export function Footer() {
-  const stores = getStores();
+  const stores = useStores();
 
   return (
     <footer className="mt-auto bg-slate-900 text-slate-300 border-t border-slate-800">

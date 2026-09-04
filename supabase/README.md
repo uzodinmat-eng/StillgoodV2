@@ -6,7 +6,7 @@ Stillgood uses **plain PostgreSQL**. The same files run locally (PGlite) and on 
 
 | Data | Local now | After you set `DATABASE_URL` |
 |---|---|---|
-| Stores, categories, products, reviews | Seeded into PGlite; UI still reads `src/lib/data.ts` | Same SQL is in your Supabase project |
+| Stores, categories, products, reviews | Postgres (PGlite if `DATABASE_URL` is empty). UI reads `src/lib/db/catalog.ts` | Same |
 | Customers, orders, order items | **Postgres / PGlite** | Supabase Postgres |
 | Buyer login | Supabase Auth (email + Google) | Same |
 | Guest cart | Cookie | Unchanged |

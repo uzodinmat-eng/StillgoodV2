@@ -15,7 +15,7 @@ import {
   ChevronDown
 } from "lucide-react";
 import { SearchAutocomplete } from "./SearchAutocomplete";
-import { getStores } from "@/lib/data";
+import { useStores } from "@/components/CatalogProvider";
 import { formatNaira } from "@/lib/pricing";
 import { getSession } from "@/lib/auth";
 import { Customer } from "@/lib/types";
@@ -40,7 +40,7 @@ export function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
 
-  const stores = getStores();
+  const stores = useStores();
   const currentStore = stores.find((s) => s.id === selectedStoreId);
 
   useEffect(() => {

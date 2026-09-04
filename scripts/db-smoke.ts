@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { getDb, query } from "../src/lib/db/client";
+import { loadCatalog } from "../src/lib/db/catalog";
 import { insertCustomer, findCustomerByPhone } from "../src/lib/db/customers";
 import { insertOrder, findOrderById, findOrdersForCustomer } from "../src/lib/db/orders";
 
@@ -9,6 +10,7 @@ async function main() {
     await getDb();
     const stores = await query<{ n: number }>("select count(*)::int as n from public.stores");
     const products = await query<{ n: number }>("select count(*)::int as n from public.products");
+    const catalog = await loadCatalog();
 
     const customer = await insertCustomer({
       id: `cus_smoke_${Date.now()}`,
@@ -65,6 +67,9 @@ async function main() {
     const report = {
       stores: stores[0],
       products: products[0],
+      catalogStores: catalog.stores.length,
+      catalogProducts: catalog.products.length,
+      catalogReviews: Object.keys(catalog.reviews).length,
       customer: found?.id,
       order: loaded?.id,
       items: loaded?.items.length,
@@ -73,7 +78,12 @@ async function main() {
     };
     console.error(JSON.stringify(report));
     fs.writeFileSync("/tmp/stillgood-db-smoke.json", JSON.stringify(report, null, 2));
-    if (!loaded?.id || Number(stores[0]?.n) < 6) {
+    if (
+      !loaded?.id ||
+      Number(stores[0]?.n) < 6 ||
+      catalog.stores.length < 6 ||
+      catalog.products.length < 1
+    ) {
       throw new Error("Smoke assertions failed");
     }
   } finally {

@@ -30,14 +30,14 @@ import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { Footer } from "@/components/Footer";
 
-import { getProducts, getStores } from "@/lib/data";
+import { useProducts, useStores } from "@/components/CatalogProvider";
 import { Product, CartSummary, Store } from "@/lib/types";
 import { getCart } from "@/lib/actions";
 import { formatNaira } from "@/lib/pricing";
 
 export default function HomePage() {
-  const [products] = useState<Product[]>(getProducts());
-  const stores = getStores();
+  const products = useProducts();
+  const stores = useStores();
 
   const [cartSummary, setCartSummary] = useState<CartSummary>({
     items: [],

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CATEGORIES } from "@/lib/data";
+import { useCategories } from "@/components/CatalogProvider";
 
 interface CategoryTilesProps {
   selectedCategoryId: string;
@@ -12,6 +12,8 @@ export function CategoryTiles({
   selectedCategoryId,
   onSelectCategory,
 }: CategoryTilesProps) {
+  const categories = useCategories();
+
   return (
     <section className="py-3">
       <div className="flex items-center justify-between mb-2.5">
@@ -42,7 +44,7 @@ export function CategoryTiles({
           <span>All Deals</span>
         </button>
 
-        {CATEGORIES.map((category) => {
+        {categories.map((category) => {
           const isSelected = selectedCategoryId === category.id;
 
           return (

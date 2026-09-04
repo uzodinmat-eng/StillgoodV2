@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { CatalogProvider } from "@/components/CatalogProvider";
+import { loadCatalog } from "@/lib/db/catalog";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,15 +31,17 @@ export const metadata: Metadata = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const catalog = await loadCatalog();
+
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased selection:bg-emerald-500 selection:text-white`}>
       <body className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-        {children}
+        <CatalogProvider catalog={catalog}>{children}</CatalogProvider>
       </body>
     </html>
   );
