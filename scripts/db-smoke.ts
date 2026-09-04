@@ -17,7 +17,7 @@ async function main() {
       id: `cus_smoke_${Date.now()}`,
       name: "Smoke Tester",
       phone: `+234803${String(Date.now()).slice(-7)}`,
-      email: "smoke@stillgood.ng",
+      email: `smoke_${Date.now()}@stillgood.ng`,
       walletBalance: 0,
       createdAt: new Date().toISOString(),
     });
