@@ -2,7 +2,8 @@ import fs from "node:fs";
 import { getDb, query } from "../src/lib/db/client";
 import { loadCatalog } from "../src/lib/db/catalog";
 import { insertCustomer, findCustomerByPhone } from "../src/lib/db/customers";
-import { insertOrder, findOrderById, findOrdersForCustomer } from "../src/lib/db/orders";
+import { insertOrder, findOrderById, findOrdersForCustomer, listAllOrders } from "../src/lib/db/orders";
+import { insertStore, listStores } from "../src/lib/db/stores";
 
 async function main() {
   const keepAlive = setInterval(() => undefined, 1000);
@@ -64,17 +65,29 @@ async function main() {
     });
     const loaded = await findOrderById(order.id);
     const listed = await findOrdersForCustomer({ customerId: customer.id, phone: customer.phone });
+    const adminStore = await insertStore({
+      name: `Smoke Mart ${Date.now()}`,
+      area: "Gwarinpa",
+      address: "Smoke Lane, Gwarinpa, Abuja",
+      phone: "+234 800 000 0000",
+    });
+    const adminStores = await listStores();
+    const allOrders = await listAllOrders(20);
+
     const report = {
       stores: stores[0],
       products: products[0],
       catalogStores: catalog.stores.length,
       catalogProducts: catalog.products.length,
       catalogReviews: Object.keys(catalog.reviews).length,
+      adminStore: adminStore.slug,
+      adminStoreCount: adminStores.length,
       customer: found?.id,
       order: loaded?.id,
       items: loaded?.items.length,
       origins: loaded?.originStores,
       listed: listed.length,
+      allOrders: allOrders.length,
     };
     console.error(JSON.stringify(report));
     fs.writeFileSync("/tmp/stillgood-db-smoke.json", JSON.stringify(report, null, 2));
@@ -82,7 +95,9 @@ async function main() {
       !loaded?.id ||
       Number(stores[0]?.n) < 6 ||
       catalog.stores.length < 6 ||
-      catalog.products.length < 1
+      catalog.products.length < 1 ||
+      !adminStore.id ||
+      allOrders.length < 1
     ) {
       throw new Error("Smoke assertions failed");
     }

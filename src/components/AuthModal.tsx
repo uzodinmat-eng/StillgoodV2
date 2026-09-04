@@ -10,6 +10,10 @@ import { Customer, Order } from "@/lib/types";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  nextPath?: string;
+  allowGuest?: boolean;
+  title?: string;
+  subtitle?: string;
   onLoggedIn?: (account: {
     customer: Customer;
     orders: Order[];
@@ -17,7 +21,15 @@ interface AuthModalProps {
   }) => void | Promise<void>;
 }
 
-export function AuthModal({ isOpen, onClose, onLoggedIn }: AuthModalProps) {
+export function AuthModal({
+  isOpen,
+  onClose,
+  nextPath = "/account",
+  allowGuest = true,
+  title,
+  subtitle,
+  onLoggedIn,
+}: AuthModalProps) {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
@@ -36,8 +48,8 @@ export function AuthModal({ isOpen, onClose, onLoggedIn }: AuthModalProps) {
   }) => {
     await onLoggedIn?.(account);
     onClose();
-    if (window.location.pathname !== "/account") {
-      router.push("/account");
+    if (window.location.pathname !== nextPath) {
+      router.push(nextPath);
     }
   };
 
@@ -85,7 +97,7 @@ export function AuthModal({ isOpen, onClose, onLoggedIn }: AuthModalProps) {
     startTransition(async () => {
       try {
         const supabase = createBrowserSupabase();
-        const redirectTo = `${window.location.origin}/auth/callback?next=/account`;
+        const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: { redirectTo },
@@ -118,10 +130,12 @@ export function AuthModal({ isOpen, onClose, onLoggedIn }: AuthModalProps) {
 
         <div className="text-center">
           <h3 className="text-base font-black text-slate-900">
-            {mode === "signin" ? "Log in to Stillgood" : "Create your Stillgood account"}
+            {title ||
+              (mode === "signin" ? "Log in to Stillgood" : "Create your Stillgood account")}
           </h3>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Email is the main login. Google is optional. Guest checkout still works if you skip this.
+            {subtitle ||
+              "Email is the main login. Google is optional. Guest checkout still works if you skip this."}
           </p>
         </div>
 
@@ -239,14 +253,16 @@ export function AuthModal({ isOpen, onClose, onLoggedIn }: AuthModalProps) {
           {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Log in"}
         </button>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1.5"
-        >
-          <User className="w-3.5 h-3.5" />
-          Continue as guest
-        </button>
+        {allowGuest && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1.5"
+          >
+            <User className="w-3.5 h-3.5" />
+            Continue as guest
+          </button>
+        )}
       </div>
     </div>
   );

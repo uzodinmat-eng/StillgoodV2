@@ -100,4 +100,5 @@ notes live in `docs/06-updates-since-original.md`.
 
 Shop catalog (stores, products, reviews) reads Postgres via `src/lib/db/catalog.ts`.
 `src/lib/data.ts` is seed-only. Buyer login is email + optional Google; guest
-checkout stays. `SG-XXXXX` is the order label only.
+checkout stays. `SG-XXXXX` is the order label only. Thin admin at `/admin`
+(allow-listed emails) can create a store and see all orders.

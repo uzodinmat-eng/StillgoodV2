@@ -145,6 +145,8 @@ export interface OrderItemRecord {
   expiryDate: string;
 }
 
+export type CustomerRole = "customer" | "admin" | "store_owner";
+
 export interface Customer {
   id: string;
   name: string;
@@ -153,6 +155,7 @@ export interface Customer {
   walletBalance: number;
   createdAt: string;
   authUserId?: string;
+  role?: CustomerRole;
 }
 
 export interface Order {

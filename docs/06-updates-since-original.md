@@ -61,8 +61,11 @@ their stored columns.
 ## Agreed build order (do not skip ahead)
 
 1. Restore original docs (frozen) + this file — **done**.
-2. Catalog from Postgres (shop and admin share the same rows) — **this slice**.
-3. Thin admin: create a store + see all orders.
+2. Catalog from Postgres (shop and admin share the same rows) — **done**.
+3. Thin admin: create a store + see all orders — **this slice**. `/admin` is
+   gated by email (`ADMIN_EMAILS` in `.env.local`) and `customers.role`.
+   Creating a store inserts into the existing `stores` table. Orders list is
+   every `SG-XXXXX`. No CAC, bank, or store-owner login yet.
 4. Thin store home: inventory + today’s pick list.
 5. Staff verify / stock decrement.
 6. Paystack → admin money + store withdraw.

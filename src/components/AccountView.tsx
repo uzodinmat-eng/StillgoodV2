@@ -133,6 +133,14 @@ export function AccountView({
               {customer.phone ? (
                 <p className="text-xs text-emerald-100/70">{customer.phone}</p>
               ) : null}
+              {customer.role === "admin" ? (
+                <Link
+                  href="/admin"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-200 hover:text-white"
+                >
+                  Admin desk
+                </Link>
+              ) : null}
               <button
                 type="button"
                 onClick={handleLogout}

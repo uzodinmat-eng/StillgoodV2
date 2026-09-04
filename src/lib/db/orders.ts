@@ -231,6 +231,20 @@ export async function findOrdersForCustomer(options: {
   return orders;
 }
 
+export async function listAllOrders(limit = 100): Promise<Order[]> {
+  const rows = await query<OrderRow>(
+    `select * from public.orders
+     order by created_at desc
+     limit $1`,
+    [limit]
+  );
+  const orders: Order[] = [];
+  for (const row of rows) {
+    orders.push(mapOrder(row, await itemsForOrder(row.id)));
+  }
+  return orders;
+}
+
 export async function updateOrderStatus(
   orderId: string,
   status: Order["status"],

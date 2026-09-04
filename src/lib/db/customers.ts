@@ -1,4 +1,4 @@
-import { Customer } from "@/lib/types";
+import { Customer, CustomerRole } from "@/lib/types";
 import { asInt, execute, isoTimestamp, queryOne } from "./client";
 
 interface CustomerRow {
@@ -9,6 +9,12 @@ interface CustomerRow {
   wallet_balance: number | string;
   created_at: Date | string;
   auth_user_id?: string | null;
+  role?: string | null;
+}
+
+function asRole(value: string | null | undefined): CustomerRole {
+  if (value === "admin" || value === "store_owner") return value;
+  return "customer";
 }
 
 function mapCustomer(row: CustomerRow): Customer {
@@ -20,10 +26,11 @@ function mapCustomer(row: CustomerRow): Customer {
     walletBalance: asInt(row.wallet_balance),
     createdAt: isoTimestamp(row.created_at),
     authUserId: row.auth_user_id || undefined,
+    role: asRole(row.role),
   };
 }
 
-const CUSTOMER_COLUMNS = `id, name, phone, email, wallet_balance, created_at, auth_user_id`;
+const CUSTOMER_COLUMNS = `id, name, phone, email, wallet_balance, created_at, auth_user_id, role`;
 
 export async function findCustomerById(id: string): Promise<Customer | null> {
   const row = await queryOne<CustomerRow>(
@@ -66,8 +73,8 @@ export async function findCustomerByPhone(phone: string): Promise<Customer | nul
 
 export async function insertCustomer(customer: Customer): Promise<Customer> {
   await execute(
-    `insert into public.customers (id, name, phone, email, wallet_balance, created_at, updated_at, auth_user_id)
-     values ($1, $2, $3, $4, $5, $6, $6, $7)`,
+    `insert into public.customers (id, name, phone, email, wallet_balance, created_at, updated_at, auth_user_id, role)
+     values ($1, $2, $3, $4, $5, $6, $6, $7, $8)`,
     [
       customer.id,
       customer.name,
@@ -76,6 +83,7 @@ export async function insertCustomer(customer: Customer): Promise<Customer> {
       customer.walletBalance,
       customer.createdAt,
       customer.authUserId ?? null,
+      customer.role || "customer",
     ]
   );
   return customer;
@@ -84,7 +92,7 @@ export async function insertCustomer(customer: Customer): Promise<Customer> {
 export async function saveCustomer(customer: Customer): Promise<Customer> {
   await execute(
     `update public.customers
-     set name = $2, email = $3, phone = $4, wallet_balance = $5, auth_user_id = $6, updated_at = now()
+     set name = $2, email = $3, phone = $4, wallet_balance = $5, auth_user_id = $6, role = $7, updated_at = now()
      where id = $1`,
     [
       customer.id,
@@ -93,6 +101,7 @@ export async function saveCustomer(customer: Customer): Promise<Customer> {
       customer.email,
       customer.walletBalance,
       customer.authUserId ?? null,
+      customer.role || "customer",
     ]
   );
   return customer;

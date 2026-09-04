@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { User } from "@supabase/supabase-js";
-import { Customer, Order } from "./types";
+import { Customer, CustomerRole, Order } from "./types";
 import {
   attachGuestOrders,
   findCustomerByAuthUserId,
@@ -14,6 +14,28 @@ import {
 import { findOrdersForCustomer } from "./db/orders";
 import { isSupabaseAuthConfigured } from "./supabase/env";
 import { createServerSupabase } from "./supabase/server";
+
+export function adminAllowlist(): string[] {
+  return (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function emailIsAdmin(email: string | undefined | null): boolean {
+  const normalized = email?.trim().toLowerCase() || "";
+  return normalized.length > 0 && adminAllowlist().includes(normalized);
+}
+
+export function customerIsAdmin(customer: Pick<Customer, "email" | "role"> | null): boolean {
+  if (!customer) return false;
+  return customer.role === "admin" || emailIsAdmin(customer.email);
+}
+
+function roleForEmail(email: string, existing?: CustomerRole): CustomerRole {
+  if (emailIsAdmin(email)) return "admin";
+  return existing || "customer";
+}
 
 function displayNameFromUser(user: User, fallback?: string): string {
   const meta = user.user_metadata || {};
@@ -44,6 +66,7 @@ export async function ensureCustomerFromUser(
       walletBalance: 0,
       createdAt: new Date().toISOString(),
       authUserId: user.id,
+      role: roleForEmail(email),
     };
     await insertCustomer(customer);
   } else {
@@ -52,11 +75,13 @@ export async function ensureCustomerFromUser(
       authUserId: user.id,
       email: email || customer.email,
       name: extras?.name?.trim() || customer.name || name,
+      role: roleForEmail(email || customer.email, customer.role),
     };
     if (
       next.authUserId !== customer.authUserId ||
       next.email !== customer.email ||
-      next.name !== customer.name
+      next.name !== customer.name ||
+      next.role !== customer.role
     ) {
       await saveCustomer(next);
       customer = next;
@@ -140,6 +165,7 @@ export async function signUpWithEmail(data: {
   const payload = await accountPayload(customer);
   revalidatePath("/");
   revalidatePath("/account");
+  revalidatePath("/admin");
   return { success: true, ...payload };
 }
 
@@ -172,6 +198,7 @@ export async function signInWithEmail(data: {
   const payload = await accountPayload(customer);
   revalidatePath("/");
   revalidatePath("/account");
+  revalidatePath("/admin");
   return { success: true, ...payload };
 }
 
@@ -186,6 +213,7 @@ export async function logout(): Promise<{ success: boolean }> {
   }
   revalidatePath("/");
   revalidatePath("/account");
+  revalidatePath("/admin");
   return { success: true };
 }
 
