@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { customerIsAdmin, getSession } from "./auth";
+import { getSession } from "./auth";
+import { customerIsAdmin } from "./auth-utils";
 import { listAllOrders } from "./db/orders";
 import { insertStore, listStores, STORE_AREAS } from "./db/stores";
 import { Customer, Order, Store } from "./types";

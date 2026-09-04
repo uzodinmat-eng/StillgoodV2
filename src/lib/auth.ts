@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { User } from "@supabase/supabase-js";
-import { Customer, CustomerRole, Order } from "./types";
+import { Customer, Order } from "./types";
+import { roleForEmail } from "./auth-utils";
 import {
   attachGuestOrders,
   findCustomerByAuthUserId,
@@ -14,28 +15,6 @@ import {
 import { findOrdersForCustomer } from "./db/orders";
 import { isSupabaseAuthConfigured } from "./supabase/env";
 import { createServerSupabase } from "./supabase/server";
-
-export function adminAllowlist(): string[] {
-  return (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-export function emailIsAdmin(email: string | undefined | null): boolean {
-  const normalized = email?.trim().toLowerCase() || "";
-  return normalized.length > 0 && adminAllowlist().includes(normalized);
-}
-
-export function customerIsAdmin(customer: Pick<Customer, "email" | "role"> | null): boolean {
-  if (!customer) return false;
-  return customer.role === "admin" || emailIsAdmin(customer.email);
-}
-
-function roleForEmail(email: string, existing?: CustomerRole): CustomerRole {
-  if (emailIsAdmin(email)) return "admin";
-  return existing || "customer";
-}
 
 function displayNameFromUser(user: User, fallback?: string): string {
   const meta = user.user_metadata || {};
