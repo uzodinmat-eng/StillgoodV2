@@ -96,7 +96,8 @@ Items listed on Stillgood feature a dynamic price decay schedule:
 ## Updates since original
 
 `docs/01`–`docs/05` are the frozen product spec. Do not edit them. Implementation
-notes live in `docs/06-updates-since-original.md`.
+notes live in `docs/06-updates-since-original.md`. How to branch, resume, and
+verify: `docs/07-process.md`.
 
 Shop catalog (stores, products, reviews) reads Postgres via `src/lib/db/catalog.ts`.
 `src/lib/data.ts` is seed-only. Buyer login is email + optional Google; guest

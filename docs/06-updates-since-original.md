@@ -2,7 +2,8 @@
 
 The five files `docs/01-product-spec.md` through `docs/05-open-questions.md` are the
 **frozen source of truth**. Do not edit them. Put process notes, implementation
-status, and compatibility decisions here.
+status, and compatibility decisions here. Branch stack and resume steps are in
+`docs/07-process.md`.
 
 ## What this repo is today
 
