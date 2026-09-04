@@ -270,6 +270,11 @@ export async function createOrder(data: {
     };
   }
 
+  const customerEmail = data.customerEmail.trim().toLowerCase();
+  if (!customerEmail || !customerEmail.includes("@")) {
+    return { success: false, error: "Enter a valid email for your pickup receipt." };
+  }
+
   const session = await getSession();
 
   if (data.paymentMethod === "wallet") {
@@ -306,7 +311,7 @@ export async function createOrder(data: {
     id: orderId,
     customerId: session?.id,
     customerName: data.customerName,
-    customerEmail: data.customerEmail,
+    customerEmail,
     customerPhone,
     items: orderItems,
     storeId: selectedStore.id,
@@ -343,7 +348,8 @@ export async function createOrder(data: {
   if (session) {
     await updateCustomerProfile(session.id, {
       name: data.customerName.trim() || session.name,
-      email: data.customerEmail.trim() || session.email,
+      email: customerEmail || session.email,
+      phone: customerPhone || session.phone,
     });
   }
 

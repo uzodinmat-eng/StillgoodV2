@@ -96,9 +96,9 @@ Items listed on Stillgood feature a dynamic price decay schedule:
 
 Added after the structure above; originals left as-is.
 
-- Buyer login: navbar user icon goes to `/account`. WhatsApp OTP; this build accepts **`123456`**. Guest checkout still works. `SG-XXXXX` is only the order number.
+- Buyer login: navbar user icon goes to `/account`. **Email is the main login**; Google is optional. Customer WhatsApp OTP is removed. Guest checkout still works. `SG-XXXXX` is only the order number. Pickup PIN remains for store attendants.
 - New files: `src/lib/auth.ts`, `src/lib/auth-utils.ts`, `src/lib/fulfillment.ts`, `src/app/account/`, `src/components/AuthModal.tsx`, `src/components/AccountView.tsx`.
 - Checkout now enforces hub consolidation (not copy-only). See `src/lib/fulfillment.ts`.
 - Discount badge on product photos is green, not red.
 - Product detail: `/product/[slug]` (`src/app/product/[slug]/`, `src/components/ProductDetailView.tsx`). Marketplace cards, search, and basket item names open it.
-- Database: PostgreSQL SQL in `supabase/` (migrations + seed + RLS). Local PGlite until you set `DATABASE_URL` to Supabase. Customers and orders persist there. Cart and OTP stay cookies. See `supabase/README.md`.
+- Database: hosted Supabase when `DATABASE_URL` is set (session pooler). Local PGlite otherwise. Customers and orders persist in Postgres. Cart stays a cookie. See `supabase/README.md`.

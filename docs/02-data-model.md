@@ -161,6 +161,6 @@ export interface Customer {
 // hubBatch?: "noon" | "evening" | null
 ```
 
-`SG-XXXXX` is still the order id. Buyer session is phone OTP (`src/lib/auth.ts`; dev code `123456`). Consolidation rules: `src/lib/fulfillment.ts`.
+`SG-XXXXX` is still the order id. Buyer login is email or Google (`src/lib/auth.ts`). Phone is a checkout/pickup contact, not OTP login. Consolidation rules: `src/lib/fulfillment.ts`.
 
-Postgres tables (Supabase-ready) are in `supabase/migrations/20260903100000_init.sql`. Catalog seed is generated from this file via `npm run db:generate-seed`. Customers and orders are stored in Postgres/PGlite; the guest cart remains a cookie.
+Postgres tables (Supabase-ready) are in `supabase/migrations/`. Catalog seed is generated from this file via `npm run db:generate-seed`. Customers and orders are stored in Postgres; the guest cart remains a cookie. Set `DATABASE_URL` to the session pooler URI.

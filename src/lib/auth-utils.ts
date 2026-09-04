@@ -1,5 +1,3 @@
-export const DEV_OTP_CODE = "123456";
-
 export function normalizeNgPhone(input: string): string | null {
   const digits = input.replace(/\D/g, "");
   if (digits.startsWith("234") && digits.length >= 13) {

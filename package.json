@@ -12,15 +12,17 @@
     "db:smoke": "tsx scripts/db-smoke.ts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "@supabase/ssr": "^0.12.6",
+    "@supabase/supabase-js": "^2.115.0",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
     "lucide-react": "^1.39.0",
     "next": "16.3.4",
+    "postgres": "^3.4.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwind-merge": "^3.6.0",
-    "postgres": "^3.4.7",
-    "@electric-sql/pglite": "^0.3.14"
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

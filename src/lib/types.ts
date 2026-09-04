@@ -135,6 +135,7 @@ export interface Customer {
   email: string;
   walletBalance: number;
   createdAt: string;
+  authUserId?: string;
 }
 
 export interface Order {

@@ -92,9 +92,19 @@ export async function execute(text: string, params: unknown[] = []): Promise<voi
   await query(text, params);
 }
 
+function migrationFiles(): string[] {
+  const dir = path.join(process.cwd(), "supabase/migrations");
+  return fs
+    .readdirSync(dir)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((name) => path.join("supabase/migrations", name));
+}
+
 async function migrate(handle: DbHandle): Promise<void> {
-  const initSql = readSqlFile("supabase/migrations/20260903100000_init.sql");
-  await applySql(handle, initSql);
+  for (const relativePath of migrationFiles()) {
+    await applySql(handle, readSqlFile(relativePath));
+  }
 
   const table = (
     await rawQuery<{ exists: string | null }>(

@@ -353,11 +353,13 @@ export function CheckoutModal({
 
             {sessionCustomer ? (
               <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                Logged in as {sessionCustomer.name} ({sessionCustomer.phone}). This order will appear on your account as SG-XXXXX.
+                Logged in as {sessionCustomer.name}
+                {sessionCustomer.email ? ` (${sessionCustomer.email})` : ""}
+                . This order will appear on your account as SG-XXXXX.
               </p>
             ) : (
               <p className="text-[11px] text-slate-500 font-medium">
-                Guest checkout. Log in from the profile icon if you want this order saved to an account.
+                Guest checkout. Use the same email when you log in later if you want this order on your account.
               </p>
             )}
 

@@ -208,16 +208,21 @@ export async function findOrderById(orderId: string): Promise<Order | null> {
 
 export async function findOrdersForCustomer(options: {
   customerId: string;
-  phone: string;
+  email?: string;
+  phone?: string;
 }): Promise<Order[]> {
   const rows = await query<OrderRow>(
     `select * from public.orders
      where customer_id = $1
-        or regexp_replace(customer_phone, '[^0-9]', '', 'g')
-           = regexp_replace($2, '[^0-9]', '', 'g')
+        or ($2 <> '' and lower(customer_email) = lower($2))
+        or (
+          $3 <> ''
+          and regexp_replace(coalesce(customer_phone, ''), '[^0-9]', '', 'g')
+            = regexp_replace($3, '[^0-9]', '', 'g')
+        )
      order by created_at desc
      limit 50`,
-    [options.customerId, options.phone]
+    [options.customerId, options.email?.trim() || "", options.phone?.trim() || ""]
   );
   const orders: Order[] = [];
   for (const row of rows) {

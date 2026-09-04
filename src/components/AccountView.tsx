@@ -110,14 +110,14 @@ export function AccountView({
             </div>
             <h1 className="text-lg font-black text-slate-900">Log in to see your account</h1>
             <p className="text-xs text-slate-500">
-              Order history, savings, and Stillgood Wallet require a buyer login. Guest checkout still works from the basket.
+              Order history, savings, and Stillgood Wallet require an email or Google login. Guest checkout still works from the basket.
             </p>
             <button
               type="button"
               onClick={() => setAuthOpen(true)}
               className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold cursor-pointer"
             >
-              Log in with WhatsApp
+              Log in with email
             </button>
           </div>
         ) : (
@@ -127,9 +127,11 @@ export function AccountView({
                 Buyer account
               </p>
               <h1 className="text-2xl font-black tracking-tight">{customer.name}</h1>
-              <p className="text-xs text-emerald-100/80">{customer.phone}</p>
               {customer.email ? (
-                <p className="text-xs text-emerald-100/70">{customer.email}</p>
+                <p className="text-xs text-emerald-100/80">{customer.email}</p>
+              ) : null}
+              {customer.phone ? (
+                <p className="text-xs text-emerald-100/70">{customer.phone}</p>
               ) : null}
               <button
                 type="button"

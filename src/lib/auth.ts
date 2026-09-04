@@ -1,63 +1,151 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import type { User } from "@supabase/supabase-js";
 import { Customer, Order } from "./types";
-import { DEV_OTP_CODE, normalizeNgPhone } from "./auth-utils";
 import {
   attachGuestOrders,
+  findCustomerByAuthUserId,
+  findCustomerByEmail,
   findCustomerById,
-  findCustomerByPhone,
   insertCustomer,
   saveCustomer,
 } from "./db/customers";
 import { findOrdersForCustomer } from "./db/orders";
+import { isSupabaseAuthConfigured } from "./supabase/env";
+import { createServerSupabase } from "./supabase/server";
 
-const SESSION_COOKIE = "stillgood_session";
-const OTP_COOKIE = "stillgood_otp";
+function displayNameFromUser(user: User, fallback?: string): string {
+  const meta = user.user_metadata || {};
+  const fromMeta =
+    (typeof meta.full_name === "string" && meta.full_name.trim()) ||
+    (typeof meta.name === "string" && meta.name.trim()) ||
+    "";
+  return fallback?.trim() || fromMeta || user.email?.split("@")[0] || "Stillgood Shopper";
+}
+
+export async function ensureCustomerFromUser(
+  user: User,
+  extras?: { name?: string }
+): Promise<Customer> {
+  const email = (user.email || "").trim().toLowerCase();
+  let customer =
+    (await findCustomerByAuthUserId(user.id)) ||
+    (email ? await findCustomerByEmail(email) : null);
+
+  const name = displayNameFromUser(user, extras?.name);
+
+  if (!customer) {
+    customer = {
+      id: `cus_${user.id.replace(/-/g, "").slice(0, 12)}`,
+      name,
+      phone: "",
+      email,
+      walletBalance: 0,
+      createdAt: new Date().toISOString(),
+      authUserId: user.id,
+    };
+    await insertCustomer(customer);
+  } else {
+    const next: Customer = {
+      ...customer,
+      authUserId: user.id,
+      email: email || customer.email,
+      name: extras?.name?.trim() || customer.name || name,
+    };
+    if (
+      next.authUserId !== customer.authUserId ||
+      next.email !== customer.email ||
+      next.name !== customer.name
+    ) {
+      await saveCustomer(next);
+      customer = next;
+    }
+  }
+
+  await attachGuestOrders(customer.id, {
+    email: customer.email,
+    phone: customer.phone,
+  });
+
+  return customer;
+}
+
+async function accountPayload(customer: Customer): Promise<{
+  customer: Customer;
+  orders: Order[];
+  savingsTotal: number;
+}> {
+  const orders = await findOrdersForCustomer({
+    customerId: customer.id,
+    email: customer.email,
+    phone: customer.phone,
+  });
+  const savingsTotal = orders.reduce((sum, order) => sum + (order.savingsTotal || 0), 0);
+  return { customer, orders, savingsTotal };
+}
 
 export async function getSession(): Promise<Customer | null> {
-  const store = await cookies();
-  const customerId = store.get(SESSION_COOKIE)?.value;
-  if (!customerId) return null;
+  if (!isSupabaseAuthConfigured()) return null;
   try {
-    return await findCustomerById(customerId);
+    const supabase = await createServerSupabase();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) return null;
+    return ensureCustomerFromUser(data.user);
   } catch {
     return null;
   }
 }
 
-export async function requestOtp(
-  phoneInput: string
-): Promise<{ success: boolean; error?: string; phone?: string }> {
-  const phone = normalizeNgPhone(phoneInput);
-  if (!phone) {
+export async function signUpWithEmail(data: {
+  email: string;
+  password: string;
+  name?: string;
+}): Promise<{
+  success: boolean;
+  customer?: Customer;
+  orders?: Order[];
+  savingsTotal?: number;
+  needsConfirmation?: boolean;
+  error?: string;
+}> {
+  const email = data.email.trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    return { success: false, error: "Enter a valid email address." };
+  }
+  if (data.password.length < 6) {
+    return { success: false, error: "Password must be at least 6 characters." };
+  }
+
+  const supabase = await createServerSupabase();
+  const { data: authData, error } = await supabase.auth.signUp({
+    email,
+    password: data.password,
+    options: {
+      data: { full_name: data.name?.trim() || "" },
+    },
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  if (!authData.session || !authData.user) {
     return {
-      success: false,
-      error: "Enter a valid Nigerian WhatsApp number (e.g. 0803 456 7890).",
+      success: true,
+      needsConfirmation: true,
     };
   }
 
-  const store = await cookies();
-  store.set(
-    OTP_COOKIE,
-    JSON.stringify({ phone, code: DEV_OTP_CODE, expiresAt: Date.now() + 10 * 60 * 1000 }),
-    {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 10,
-    }
-  );
-
-  return { success: true, phone };
+  const customer = await ensureCustomerFromUser(authData.user, { name: data.name });
+  const payload = await accountPayload(customer);
+  revalidatePath("/");
+  revalidatePath("/account");
+  return { success: true, ...payload };
 }
 
-export async function verifyOtp(data: {
-  phone: string;
-  code: string;
-  name?: string;
-  email?: string;
+export async function signInWithEmail(data: {
+  email: string;
+  password: string;
 }): Promise<{
   success: boolean;
   customer?: Customer;
@@ -65,74 +153,37 @@ export async function verifyOtp(data: {
   savingsTotal?: number;
   error?: string;
 }> {
-  const phone = normalizeNgPhone(data.phone);
-  if (!phone) {
-    return { success: false, error: "Invalid phone number." };
+  const email = data.email.trim().toLowerCase();
+  if (!email || !data.password) {
+    return { success: false, error: "Enter your email and password." };
   }
 
-  const store = await cookies();
-  const otpRaw = store.get(OTP_COOKIE)?.value;
-  if (!otpRaw) {
-    return { success: false, error: "No code was requested. Send a new OTP." };
-  }
-
-  try {
-    const otp = JSON.parse(otpRaw) as { phone: string; code: string; expiresAt: number };
-    if (otp.phone !== phone) {
-      return { success: false, error: "Phone number does not match the OTP request." };
-    }
-    if (Date.now() > otp.expiresAt) {
-      return { success: false, error: "That code has expired. Request a new one." };
-    }
-    if (data.code.trim() !== otp.code && data.code.trim() !== DEV_OTP_CODE) {
-      return { success: false, error: "Incorrect code. Use 123456 in this development build." };
-    }
-  } catch {
-    return { success: false, error: "OTP session is invalid. Request a new code." };
-  }
-
-  let customer = await findCustomerByPhone(phone);
-
-  if (!customer) {
-    customer = {
-      id: `cus_${Math.random().toString(36).slice(2, 10)}`,
-      name: data.name?.trim() || "Stillgood Shopper",
-      phone,
-      email: data.email?.trim() || "",
-      walletBalance: 0,
-      createdAt: new Date().toISOString(),
-    };
-    await insertCustomer(customer);
-  } else if (data.name?.trim()) {
-    customer = { ...customer, name: data.name.trim() };
-    await saveCustomer(customer);
-  }
-
-  await attachGuestOrders(customer.id, phone);
-
-  store.set(SESSION_COOKIE, customer.id, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30,
+  const supabase = await createServerSupabase();
+  const { data: authData, error } = await supabase.auth.signInWithPassword({
+    email,
+    password: data.password,
   });
-  store.delete(OTP_COOKIE);
 
-  const orders = await findOrdersForCustomer({
-    customerId: customer.id,
-    phone: customer.phone,
-  });
-  const savingsTotal = orders.reduce((sum, order) => sum + (order.savingsTotal || 0), 0);
+  if (error || !authData.user) {
+    return { success: false, error: error?.message || "Could not sign in." };
+  }
 
+  const customer = await ensureCustomerFromUser(authData.user);
+  const payload = await accountPayload(customer);
   revalidatePath("/");
   revalidatePath("/account");
-
-  return { success: true, customer, orders, savingsTotal };
+  return { success: true, ...payload };
 }
 
 export async function logout(): Promise<{ success: boolean }> {
-  const store = await cookies();
-  store.delete(SESSION_COOKIE);
+  if (isSupabaseAuthConfigured()) {
+    try {
+      const supabase = await createServerSupabase();
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+  }
   revalidatePath("/");
   revalidatePath("/account");
   return { success: true };
@@ -140,7 +191,7 @@ export async function logout(): Promise<{ success: boolean }> {
 
 export async function updateCustomerProfile(
   customerId: string,
-  patch: Partial<Pick<Customer, "name" | "email" | "walletBalance">>
+  patch: Partial<Pick<Customer, "name" | "email" | "walletBalance" | "phone">>
 ): Promise<Customer | null> {
   const customer = await findCustomerById(customerId);
   if (!customer) return null;
@@ -180,12 +231,5 @@ export async function getAccount(): Promise<{
   if (!customer) {
     return { customer: null, orders: [], savingsTotal: 0 };
   }
-
-  const orders = await findOrdersForCustomer({
-    customerId: customer.id,
-    phone: customer.phone,
-  });
-  const savingsTotal = orders.reduce((sum, order) => sum + (order.savingsTotal || 0), 0);
-
-  return { customer, orders, savingsTotal };
+  return accountPayload(customer);
 }

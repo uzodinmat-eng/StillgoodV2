@@ -42,8 +42,8 @@ Shipped on top of Sprint 2; Sprint 3–4 items are still upcoming.
 - Store deal counts are computed from the catalog, not hardcoded. Pickup copy includes dispatch riders. Phone numbers removed from store cards. Branding is Stillgood Marketplace / Nigeria; Lagos is Coming Soon. Store ratings open a reviews modal. Sort is Price / Time of upload / Time of expiry / Biggest discount with an Asc/Desc toggle. Storage filter removed.
 - Hub consolidation is enforced in checkout (`src/lib/fulfillment.ts`): one store locks pickup to that store; two or more stores require a destination hub and only the noon (12:00 PM) or evening (5:00 PM) Lagos batches. Pickup pass stores `requiresConsolidation`, `originStores`, `hubBatch`.
 - Product image discount badge is emerald (still `-X%` + down arrow), not red.
-- Buyer login exists: navbar user icon → `/account`. WhatsApp OTP; **dev code is always `123456`**. Guest checkout still works. Account shows orders (`SG-XXXXX` is the order number only), savings, mocked wallet (₦0). Wallet pay requires login and sufficient balance.
-- `SG-XXXXX` remains the order labelling format, not a login method.
+- Buyer login exists: navbar user icon → `/account`. **Email is the main login**; Google is optional. Customer OTP is removed. Guest checkout still works. Account shows orders (`SG-XXXXX` is the order number only), savings, mocked wallet (₦0). Wallet pay requires login and sufficient balance.
+- `SG-XXXXX` remains the order labelling format, not a login method. The 4-digit pickup PIN is for store attendants.
 - Product detail pages at `/product/[slug]`: photo, drift schedule, pickup store, NAFDAC/stock, quantity add-to-cart. Cards, search hits, and basket names link here. Related deals sit at the bottom.
-- Postgres schema lives in `supabase/migrations/` + `supabase/seed.sql` so you can paste it into Supabase. Locally the app uses PGlite (same SQL) for **customers and orders**. Guest cart/OTP stay cookies. Set `DATABASE_URL` after upload.
+- Postgres: set `DATABASE_URL` to the Supabase session pooler URI. Run migrations in `supabase/migrations/` then `seed.sql` then `rls.sql`. Local PGlite is the fallback when the URI is empty. Guest cart stays a cookie.
 - Next slices still need a go-ahead. Ask before live Paystack, Termii, or a merchant portal.
