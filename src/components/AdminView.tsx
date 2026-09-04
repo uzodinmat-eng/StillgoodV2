@@ -12,25 +12,27 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
-import { createStoreAction } from "@/lib/admin";
+import { createStoreAction, setStoreStatusAction } from "@/lib/admin";
 import { logout } from "@/lib/auth";
 import { formatNaira } from "@/lib/pricing";
-import { Customer, Order, Store } from "@/lib/types";
+import { Customer, Order, Store, STORE_AREAS, StoreStatus } from "@/lib/types";
 
 interface AdminViewProps {
   customer: Customer | null;
   isAdmin: boolean;
   stores: Store[];
+  pendingStores?: Store[];
   orders: Order[];
-  areas: Store["area"][];
+  areas?: Store["area"][];
 }
 
 export function AdminView({
   customer,
   isAdmin,
   stores,
+  pendingStores = [],
   orders,
-  areas,
+  areas = STORE_AREAS,
 }: AdminViewProps) {
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(!customer);
@@ -63,6 +65,20 @@ export function AdminView({
       setName("");
       setAddress("");
       setPhone("");
+      router.refresh();
+    });
+  };
+
+  const handleStatusChange = (storeId: string, newStatus: StoreStatus) => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    startTransition(async () => {
+      const res = await setStoreStatusAction(storeId, newStatus);
+      if (!res.success) {
+        setErrorMsg(res.error || "Failed to update store status.");
+        return;
+      }
+      setInfoMsg(`Store status updated to ${newStatus}.`);
       router.refresh();
     });
   };
@@ -123,6 +139,73 @@ export function AdminView({
 
         {isAdmin && (
           <>
+            {/* Pending Store Approvals Section */}
+            {pendingStores.length > 0 && (
+              <section className="rounded-3xl border border-amber-300 bg-amber-50/70 p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-amber-700" />
+                    <h2 className="text-sm font-black uppercase tracking-wider text-amber-900">
+                      Pending Store Registrations ({pendingStores.length})
+                    </h2>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-800 px-2 py-0.5 rounded-md">
+                    Review Required
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800/80">
+                  These supermarkets submitted self-registration. Approve to publish to marketplace catalog and activate owner login.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-amber-900/60 uppercase tracking-wider">
+                      <tr>
+                        <th className="py-2 pr-3">Supermarket Name</th>
+                        <th className="py-2 pr-3">Area</th>
+                        <th className="py-2 pr-3">CAC / Type</th>
+                        <th className="py-2 pr-3">Phone</th>
+                        <th className="py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingStores.map((s) => (
+                        <tr key={s.id} className="border-t border-amber-200/60">
+                          <td className="py-3 pr-3 font-bold text-slate-900">
+                            <div>{s.name}</div>
+                            <div className="text-[11px] font-normal text-slate-500">{s.address}</div>
+                          </td>
+                          <td className="py-3 pr-3 text-slate-700 font-semibold">{s.area}</td>
+                          <td className="py-3 pr-3 text-slate-600">
+                            <div>{s.cacNumber || "No CAC provided"}</div>
+                            <div className="text-[10px] uppercase text-slate-400 font-semibold">{s.storeType}</div>
+                          </td>
+                          <td className="py-3 pr-3 text-slate-700">{s.phone}</td>
+                          <td className="py-3 text-right space-x-2">
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleStatusChange(s.id, "approved")}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs cursor-pointer disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleStatusChange(s.id, "suspended")}
+                              className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-rose-600 font-bold text-[11px] cursor-pointer disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
             <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <Plus className="w-4 h-4 text-emerald-600" />

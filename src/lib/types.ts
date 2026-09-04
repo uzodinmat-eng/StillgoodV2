@@ -19,6 +19,19 @@ export interface StoreReviewData {
   reviews: StoreReview[];
 }
 
+export const STORE_AREAS: Store["area"][] = [
+  "Wuse II",
+  "Maitama",
+  "Garki",
+  "Jabi",
+  "Utako",
+  "Central Area",
+  "Jahi",
+  "Gwarinpa",
+];
+
+export type StoreStatus = "pending" | "approved" | "suspended";
+
 export interface Store {
   id: string;
   name: string;
@@ -38,6 +51,10 @@ export interface Store {
   };
   isActive: boolean;
   totalDeals: number;
+  status?: StoreStatus;
+  ownerId?: string;
+  cacNumber?: string;
+  storeType?: string;
 }
 
 export interface Category {
@@ -156,6 +173,7 @@ export interface Customer {
   createdAt: string;
   authUserId?: string;
   role?: CustomerRole;
+  storeId?: string;
 }
 
 export interface Order {

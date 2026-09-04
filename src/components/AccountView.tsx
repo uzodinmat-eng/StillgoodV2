@@ -133,14 +133,24 @@ export function AccountView({
               {customer.phone ? (
                 <p className="text-xs text-emerald-100/70">{customer.phone}</p>
               ) : null}
-              {customer.role === "admin" ? (
-                <Link
-                  href="/admin"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-200 hover:text-white"
-                >
-                  Admin desk
-                </Link>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                {customer.role === "admin" && (
+                  <Link
+                    href="/admin"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-200 hover:text-white"
+                  >
+                    Admin desk
+                  </Link>
+                )}
+                {(customer.role === "store_owner" || customer.role === "admin" || customer.storeId) && (
+                  <Link
+                    href="/store"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-200 hover:text-white"
+                  >
+                    Store portal
+                  </Link>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handleLogout}

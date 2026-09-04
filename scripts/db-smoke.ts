@@ -3,7 +3,8 @@ import { getDb, query } from "../src/lib/db/client";
 import { loadCatalog } from "../src/lib/db/catalog";
 import { insertCustomer, findCustomerByPhone } from "../src/lib/db/customers";
 import { insertOrder, findOrderById, findOrdersForCustomer, listAllOrders } from "../src/lib/db/orders";
-import { insertStore, listStores } from "../src/lib/db/stores";
+import { insertStore, listStores, updateStoreStatus } from "../src/lib/db/stores";
+import { insertProduct, findProductsForStore } from "../src/lib/db/products";
 
 async function main() {
   const keepAlive = setInterval(() => undefined, 1000);
@@ -65,12 +66,40 @@ async function main() {
     });
     const loaded = await findOrderById(order.id);
     const listed = await findOrdersForCustomer({ customerId: customer.id, phone: customer.phone });
+    const pendingStore = await insertStore({
+      name: `Pending Mart ${Date.now()}`,
+      area: "Maitama",
+      address: "Maitama Crescent, Abuja",
+      phone: "+234 802 000 1111",
+      status: "pending",
+      ownerId: customer.id,
+    });
+    const pendingStoresList = await listStores({ status: "pending" });
+
     const adminStore = await insertStore({
       name: `Smoke Mart ${Date.now()}`,
       area: "Gwarinpa",
       address: "Smoke Lane, Gwarinpa, Abuja",
       phone: "+234 800 000 0000",
+      status: "pending",
     });
+    await updateStoreStatus(adminStore.id, "approved");
+
+    const smokeProduct = await insertProduct({
+      storeId: adminStore.id,
+      name: `Smoke Flour ${Date.now()}`,
+      brand: "Smoke Brand",
+      category: "cat_pantry",
+      description: "Freshly listed flour",
+      unit: "1kg",
+      originalPrice: 3000,
+      baseDiscountPercent: 30,
+      dateType: "best_before",
+      expiryDate: "2026-10-10",
+      stockQuantity: 10,
+      storageCondition: "ambient",
+    });
+    const storeProducts = await findProductsForStore(adminStore.id);
     const adminStores = await listStores();
     const allOrders = await listAllOrders(20);
 
@@ -80,8 +109,12 @@ async function main() {
       catalogStores: catalog.stores.length,
       catalogProducts: catalog.products.length,
       catalogReviews: Object.keys(catalog.reviews).length,
+      pendingStore: pendingStore.slug,
+      pendingCount: pendingStoresList.length,
       adminStore: adminStore.slug,
       adminStoreCount: adminStores.length,
+      smokeProductId: smokeProduct.id,
+      storeProductCount: storeProducts.length,
       customer: found?.id,
       order: loaded?.id,
       items: loaded?.items.length,
@@ -97,7 +130,9 @@ async function main() {
       catalog.stores.length < 6 ||
       catalog.products.length < 1 ||
       !adminStore.id ||
-      allOrders.length < 1
+      !pendingStore.id ||
+      allOrders.length < 1 ||
+      storeProducts.length < 1
     ) {
       throw new Error("Smoke assertions failed");
     }

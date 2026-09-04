@@ -21,6 +21,7 @@ export function customerIsAdmin(
 
 export function roleForEmail(email: string, existing?: CustomerRole): CustomerRole {
   if (emailIsAdmin(email)) return "admin";
+  if (existing === "store_owner") return "store_owner";
   return existing || "customer";
 }
 

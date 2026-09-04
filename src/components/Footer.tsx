@@ -113,6 +113,14 @@ export function Footer() {
           <p className="text-slate-400">
             Have questions about an order or want to register your supermarket?
           </p>
+          <div className="pt-1">
+            <Link
+              href="/store/register"
+              className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 py-1.5 rounded-lg text-xs transition-colors mb-2"
+            >
+              Register Supermarket →
+            </Link>
+          </div>
           <p className="text-emerald-400 font-bold">
             📞 +234 800 STILLGOOD (784554)
           </p>

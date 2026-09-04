@@ -10,6 +10,7 @@ interface CustomerRow {
   created_at: Date | string;
   auth_user_id?: string | null;
   role?: string | null;
+  store_id?: string | null;
 }
 
 function asRole(value: string | null | undefined): CustomerRole {
@@ -27,10 +28,11 @@ function mapCustomer(row: CustomerRow): Customer {
     createdAt: isoTimestamp(row.created_at),
     authUserId: row.auth_user_id || undefined,
     role: asRole(row.role),
+    storeId: row.store_id || undefined,
   };
 }
 
-const CUSTOMER_COLUMNS = `id, name, phone, email, wallet_balance, created_at, auth_user_id, role`;
+const CUSTOMER_COLUMNS = `id, name, phone, email, wallet_balance, created_at, auth_user_id, role, store_id`;
 
 export async function findCustomerById(id: string): Promise<Customer | null> {
   const row = await queryOne<CustomerRow>(
@@ -73,8 +75,8 @@ export async function findCustomerByPhone(phone: string): Promise<Customer | nul
 
 export async function insertCustomer(customer: Customer): Promise<Customer> {
   await execute(
-    `insert into public.customers (id, name, phone, email, wallet_balance, created_at, updated_at, auth_user_id, role)
-     values ($1, $2, $3, $4, $5, $6, $6, $7, $8)`,
+    `insert into public.customers (id, name, phone, email, wallet_balance, created_at, updated_at, auth_user_id, role, store_id)
+     values ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9)`,
     [
       customer.id,
       customer.name,
@@ -84,6 +86,7 @@ export async function insertCustomer(customer: Customer): Promise<Customer> {
       customer.createdAt,
       customer.authUserId ?? null,
       customer.role || "customer",
+      customer.storeId ?? null,
     ]
   );
   return customer;
@@ -92,7 +95,7 @@ export async function insertCustomer(customer: Customer): Promise<Customer> {
 export async function saveCustomer(customer: Customer): Promise<Customer> {
   await execute(
     `update public.customers
-     set name = $2, email = $3, phone = $4, wallet_balance = $5, auth_user_id = $6, role = $7, updated_at = now()
+     set name = $2, email = $3, phone = $4, wallet_balance = $5, auth_user_id = $6, role = $7, store_id = $8, updated_at = now()
      where id = $1`,
     [
       customer.id,
@@ -102,6 +105,7 @@ export async function saveCustomer(customer: Customer): Promise<Customer> {
       customer.walletBalance,
       customer.authUserId ?? null,
       customer.role || "customer",
+      customer.storeId ?? null,
     ]
   );
   return customer;

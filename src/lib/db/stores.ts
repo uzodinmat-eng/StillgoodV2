@@ -1,16 +1,7 @@
-import { Store } from "@/lib/types";
+import { Store, STORE_AREAS, StoreStatus } from "@/lib/types";
 import { asInt, execute, query, queryOne } from "./client";
 
-export const STORE_AREAS: Store["area"][] = [
-  "Wuse II",
-  "Maitama",
-  "Garki",
-  "Jabi",
-  "Utako",
-  "Central Area",
-  "Jahi",
-  "Gwarinpa",
-];
+export { STORE_AREAS };
 
 const DEFAULT_IMAGE =
   "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=800&q=80";
@@ -35,6 +26,15 @@ interface StoreRow {
   lat: number | string;
   lng: number | string;
   is_active: boolean;
+  status?: string | null;
+  owner_id?: string | null;
+  cac_number?: string | null;
+  store_type?: string | null;
+}
+
+function asStatus(value: string | null | undefined): StoreStatus {
+  if (value === "pending" || value === "suspended") return value;
+  return "approved";
 }
 
 function mapStore(row: StoreRow, dealCount = 0): Store {
@@ -57,8 +57,16 @@ function mapStore(row: StoreRow, dealCount = 0): Store {
     },
     isActive: Boolean(row.is_active),
     totalDeals: dealCount,
+    status: asStatus(row.status),
+    ownerId: row.owner_id || undefined,
+    cacNumber: row.cac_number || undefined,
+    storeType: row.store_type || "supermarket",
   };
 }
+
+const STORE_COLUMNS = `id, name, slug, area, address, phone, rating, review_count,
+        open_hours, pickup_instructions, image_url, banner_image_url,
+        lat, lng, is_active, status, owner_id, cac_number, store_type`;
 
 export function slugifyStoreName(name: string): string {
   const slug = name
@@ -71,14 +79,18 @@ export function slugifyStoreName(name: string): string {
   return slug || `store-${Date.now()}`;
 }
 
-export async function listStores(): Promise<Store[]> {
-  const rows = await query<StoreRow>(
-    `select id, name, slug, area, address, phone, rating, review_count,
-            open_hours, pickup_instructions, image_url, banner_image_url,
-            lat, lng, is_active
-       from public.stores
-      order by name`
-  );
+export async function listStores(filter?: { status?: StoreStatus; all?: boolean }): Promise<Store[]> {
+  let sql = `select ${STORE_COLUMNS} from public.stores`;
+  const params: unknown[] = [];
+  if (filter?.status) {
+    sql += ` where status = $1`;
+    params.push(filter.status);
+  } else if (!filter?.all) {
+    sql += ` where status = 'approved' and is_active = true`;
+  }
+  sql += ` order by name`;
+
+  const rows = await query<StoreRow>(sql, params);
   const counts = await query<{ store_id: string; n: number | string }>(
     `select store_id, count(*)::int as n from public.products group by store_id`
   );
@@ -88,17 +100,65 @@ export async function listStores(): Promise<Store[]> {
   return rows.map((row) => mapStore(row, dealCounts.get(row.id) || 0));
 }
 
+export async function listPendingStores(): Promise<Store[]> {
+  const rows = await query<StoreRow>(
+    `select ${STORE_COLUMNS} from public.stores where status = 'pending' order by created_at desc`
+  );
+  return rows.map((row) => mapStore(row, 0));
+}
+
+export async function findStoreById(id: string): Promise<Store | null> {
+  const row = await queryOne<StoreRow>(
+    `select ${STORE_COLUMNS} from public.stores where id = $1 limit 1`,
+    [id]
+  );
+  if (!row) return null;
+  const countRow = await queryOne<{ n: number | string }>(
+    `select count(*)::int as n from public.products where store_id = $1`,
+    [id]
+  );
+  return mapStore(row, asInt(countRow?.n));
+}
+
 export async function findStoreBySlug(slug: string): Promise<Store | null> {
   const row = await queryOne<StoreRow>(
-    `select id, name, slug, area, address, phone, rating, review_count,
-            open_hours, pickup_instructions, image_url, banner_image_url,
-            lat, lng, is_active
-       from public.stores
-      where slug = $1
-      limit 1`,
+    `select ${STORE_COLUMNS} from public.stores where slug = $1 limit 1`,
     [slug]
   );
-  return row ? mapStore(row) : null;
+  if (!row) return null;
+  const countRow = await queryOne<{ n: number | string }>(
+    `select count(*)::int as n from public.products where store_id = $1`,
+    [row.id]
+  );
+  return mapStore(row, asInt(countRow?.n));
+}
+
+export async function findStoreByOwnerId(ownerId: string): Promise<Store | null> {
+  const row = await queryOne<StoreRow>(
+    `select ${STORE_COLUMNS} from public.stores where owner_id = $1 limit 1`,
+    [ownerId]
+  );
+  if (!row) return null;
+  const countRow = await queryOne<{ n: number | string }>(
+    `select count(*)::int as n from public.products where store_id = $1`,
+    [row.id]
+  );
+  return mapStore(row, asInt(countRow?.n));
+}
+
+export async function updateStoreStatus(
+  storeId: string,
+  status: StoreStatus,
+  isActive?: boolean
+): Promise<Store | null> {
+  const activeVal = isActive !== undefined ? isActive : status === "approved";
+  await execute(
+    `update public.stores
+     set status = $2, is_active = $3, updated_at = now()
+     where id = $1`,
+    [storeId, status, activeVal]
+  );
+  return findStoreById(storeId);
 }
 
 export async function insertStore(input: {
@@ -112,12 +172,18 @@ export async function insertStore(input: {
   bannerImage?: string;
   lat?: number;
   lng?: number;
+  status?: StoreStatus;
+  ownerId?: string;
+  cacNumber?: string;
+  storeType?: string;
 }): Promise<Store> {
   let slug = slugifyStoreName(input.name);
   if (await findStoreBySlug(slug)) {
     slug = `${slug}-${String(Date.now()).slice(-4)}`;
   }
   const id = `store_${slug.replace(/-/g, "_")}`;
+  const status = input.status || "approved";
+  const isActive = status === "approved";
 
   const store: Store = {
     id,
@@ -138,19 +204,23 @@ export async function insertStore(input: {
       lat: Number.isFinite(input.lat) ? Number(input.lat) : DEFAULT_LAT,
       lng: Number.isFinite(input.lng) ? Number(input.lng) : DEFAULT_LNG,
     },
-    isActive: true,
+    isActive,
     totalDeals: 0,
+    status,
+    ownerId: input.ownerId,
+    cacNumber: input.cacNumber,
+    storeType: input.storeType || "supermarket",
   };
 
   await execute(
     `insert into public.stores (
         id, name, slug, area, address, phone, rating, review_count,
         open_hours, pickup_instructions, image_url, banner_image_url,
-        lat, lng, is_active
+        lat, lng, is_active, status, owner_id, cac_number, store_type
       ) values (
         $1, $2, $3, $4, $5, $6, 0, 0,
         $7, $8, $9, $10,
-        $11, $12, true
+        $11, $12, $13, $14, $15, $16, $17
       )`,
     [
       store.id,
@@ -165,6 +235,11 @@ export async function insertStore(input: {
       store.bannerImage || null,
       store.coordinates.lat,
       store.coordinates.lng,
+      store.isActive,
+      store.status,
+      store.ownerId ?? null,
+      store.cacNumber ?? null,
+      store.storeType ?? "supermarket",
     ]
   );
 

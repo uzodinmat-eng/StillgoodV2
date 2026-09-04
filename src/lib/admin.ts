@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "./auth";
 import { customerIsAdmin } from "./auth-utils";
 import { listAllOrders } from "./db/orders";
-import { insertStore, listStores, STORE_AREAS } from "./db/stores";
-import { Customer, Order, Store } from "./types";
+import { insertStore, listStores, STORE_AREAS, updateStoreStatus } from "./db/stores";
+import { Customer, Order, Store, StoreStatus } from "./types";
 
 export type AdminStoreInput = {
   name: string;
@@ -31,6 +31,7 @@ export async function getAdminDesk(): Promise<{
   customer: Customer | null;
   isAdmin: boolean;
   stores: Store[];
+  pendingStores: Store[];
   orders: Order[];
   areas: Store["area"][];
 }> {
@@ -41,12 +42,54 @@ export async function getAdminDesk(): Promise<{
       customer,
       isAdmin: false,
       stores: [],
+      pendingStores: [],
       orders: [],
       areas: STORE_AREAS,
     };
   }
-  const [stores, orders] = await Promise.all([listStores(), listAllOrders(100)]);
-  return { customer, isAdmin: true, stores, orders, areas: STORE_AREAS };
+  const [allStores, orders] = await Promise.all([
+    listStores({ all: true }),
+    listAllOrders(100),
+  ]);
+  const approvedStores = allStores.filter((s) => s.status !== "pending");
+  const pendingStores = allStores.filter((s) => s.status === "pending");
+
+  return {
+    customer,
+    isAdmin: true,
+    stores: approvedStores,
+    pendingStores,
+    orders,
+    areas: STORE_AREAS,
+  };
+}
+
+export async function setStoreStatusAction(
+  storeId: string,
+  status: StoreStatus
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Not allowed.",
+    };
+  }
+
+  try {
+    await updateStoreStatus(storeId, status);
+    revalidatePath("/");
+    revalidatePath("/stores");
+    revalidatePath("/admin");
+    revalidatePath("/store");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update store status.",
+    };
+  }
 }
 
 export async function createStoreAction(

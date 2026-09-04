@@ -11,6 +11,7 @@ export default async function AdminPage() {
       customer={desk.customer}
       isAdmin={desk.isAdmin}
       stores={desk.stores}
+      pendingStores={desk.pendingStores}
       orders={desk.orders}
       areas={desk.areas}
     />

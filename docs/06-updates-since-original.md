@@ -63,11 +63,9 @@ their stored columns.
 
 1. Restore original docs (frozen) + this file — **done**.
 2. Catalog from Postgres (shop and admin share the same rows) — **done**.
-3. Thin admin: create a store + see all orders — **this slice**. `/admin` is
-   gated by email (`ADMIN_EMAILS` in `.env.local`) and `customers.role`.
-   Creating a store inserts into the existing `stores` table. Orders list is
-   every `SG-XXXXX`. No CAC, bank, or store-owner login yet.
-4. Thin store home: inventory + today’s pick list.
+3. Thin admin: create a store + see all orders — **done**.
+4. Thin store portal (`/store`) + store self-registration (`/store/register`) + admin approval (`/admin`) — **this slice**.
+   Store owners can sign up on the site, admin reviews/approves them in `/admin`. Approved owners log in at `/store`, manage inventory (with photo upload + camera capture option), view today's picks and previous order history, and update password.
 5. Staff verify / stock decrement.
 6. Paystack → admin money + store withdraw.
 7. Full Sprint 6 polish (buckets, health, support tools).

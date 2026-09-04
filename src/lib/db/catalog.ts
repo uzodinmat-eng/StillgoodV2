@@ -36,6 +36,10 @@ interface StoreRow {
   lat: number | string;
   lng: number | string;
   is_active: boolean;
+  status?: string | null;
+  owner_id?: string | null;
+  cac_number?: string | null;
+  store_type?: string | null;
 }
 
 interface CategoryRow {
@@ -176,6 +180,10 @@ function hydrateStore(row: StoreRow, dealCount: number): Store {
     },
     isActive: Boolean(row.is_active),
     totalDeals: dealCount,
+    status: row.status === "pending" || row.status === "suspended" ? row.status : "approved",
+    ownerId: row.owner_id || undefined,
+    cacNumber: row.cac_number || undefined,
+    storeType: row.store_type || "supermarket",
   };
 }
 
@@ -200,7 +208,7 @@ export async function loadCatalog(): Promise<CatalogSnapshot> {
                 open_hours, pickup_instructions, image_url, banner_image_url,
                 lat, lng, is_active
            from public.stores
-          where is_active = true
+          where is_active = true and coalesce(status, 'approved') = 'approved'
           order by name`
       ),
       query<CategoryRow>(

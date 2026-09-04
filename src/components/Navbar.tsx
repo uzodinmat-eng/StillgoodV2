@@ -77,6 +77,12 @@ export function Navbar({
             >
               Partner Stores
             </Link>
+            <Link
+              href="/store/register"
+              className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-2 py-0.5 rounded text-[11px] border border-emerald-600 transition-colors hidden sm:inline"
+            >
+              Store Sign Up
+            </Link>
           </div>
         </div>
       </div>

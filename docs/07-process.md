@@ -9,12 +9,12 @@ we build, branch, and resume. New chats can start from this file plus
 1. Restore originals + updates file — **done**
 2. Catalog from Postgres — **done**
 3. Thin admin (create store + all orders) — **done**
-4. Thin store home (inventory + today’s pick list) — **next**
-5. Staff verify / stock decrement
+4. Store self-registration (`/store/register`) + admin approvals (`/admin`) + Store Portal (`/store`) with inventory (photo upload/camera) & orders list — **done**
+5. Staff verify / stock decrement — **next**
 6. Paystack → admin money + store withdraw
 7. Sprint 6 polish
 
-Ask before Paystack, Termii, or a merchant portal beyond thin store home.
+Ask before Paystack, Termii, or a merchant portal beyond store home.
 Staff login OTP stays with Termii at the end.
 
 ## Branch stack (`main` is behind at `8349c09`)
@@ -23,7 +23,8 @@ Staff login OTP stays with Termii at the end.
 main
 └─ cursor/supabase-email-google-auth-6d55   PR #4
    └─ cursor/docs-catalog-postgres-7ad0     PR #5
-      └─ cursor/thin-admin-7ad0             PR #6  ← start here
+      └─ cursor/thin-admin-7ad0             PR #6
+         └─ cursor/store-portal-7ad0        PR #7  ← start here
 ```
 
 New work: `cursor/<descriptive-name>-7ad0`, stacked on the latest slice branch.
