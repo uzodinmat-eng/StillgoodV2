@@ -43,11 +43,12 @@ concepts (`businesses`, `staff`, `sub_orders`, `ledger_entries`) are **additive*
 migrations later. Never `DROP` live tables or change primary-key types to
 realign names.
 
-## Catalog (this slice)
+## Catalog (done)
 
 Shop reads `public.stores` / `public.categories` / `public.products` /
-reviews via `src/lib/db/catalog.ts`. The same helpers are what admin will use.
-`src/lib/data.ts` remains the seed source for `npm run db:generate-seed` only.
+reviews via `src/lib/db/catalog.ts`. The same helpers are what admin and store
+portal use. `src/lib/data.ts` remains the seed source for
+`npm run db:generate-seed` only.
 
 Cart stays a cookie. Drift price is still computed in the app from
 `original_price` + `base_discount_percent` + weekly rate (not start/floor yet).
@@ -64,9 +65,11 @@ their stored columns.
 1. Restore original docs (frozen) + this file — **done**.
 2. Catalog from Postgres (shop and admin share the same rows) — **done**.
 3. Thin admin: create a store + see all orders — **done**.
-4. Thin store portal (`/store`) + store self-registration (`/store/register`) + admin approval (`/admin`) — **this slice**.
-   Store owners can sign up on the site, admin reviews/approves them in `/admin`. Approved owners log in at `/store`, manage inventory (with photo upload + camera capture option), view today's picks and previous order history, and update password.
-5. Staff verify / stock decrement.
+4. Thin store portal (`/store`) + store self-registration (`/store/register`) + admin approval (`/admin`) — **done**.
+   Store owners sign up on the site; admin approves/rejects/suspends in `/admin`.
+   Approved owners use `/store` for inventory (photo upload + camera), today's
+   picks + order history, and password change.
+5. Staff verify / stock decrement — **next**.
 6. Paystack → admin money + store withdraw.
 7. Full Sprint 6 polish (buckets, health, support tools).
 

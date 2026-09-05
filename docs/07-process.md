@@ -57,5 +57,7 @@ PRs via ManagePullRequest. Do not commit `.env.local` or `.data/`.
 
 ## Resume
 
-Check out the latest branch (`cursor/thin-admin-7ad0` today), read this file,
-then do the next unchecked slice.
+Check out the latest branch (`cursor/store-portal-7ad0` today), read this file
+and `docs/06-updates-since-original.md`, then do the next unchecked slice
+(staff verify / stock decrement). Wait for “go” before implementing; do not
+skip ahead to Paystack or Termii.
