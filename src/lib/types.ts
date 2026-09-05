@@ -176,6 +176,14 @@ export interface Customer {
   storeId?: string;
 }
 
+export interface StoreFulfillment {
+  storeId: string;
+  subtotal: number;
+  status: "pending" | "ready_for_pickup" | "picked_up" | "cancelled";
+  pickupCode: string;
+  pickedUpAt?: string;
+}
+
 export interface Order {
   id: string; // SG-XXXXX
   customerId?: string;
@@ -201,6 +209,7 @@ export interface Order {
   pickupTimeSlot: string;
   pickupVerificationCode: string; // 4-digit PIN e.g. "7294"
   pickedUpAt?: string;
+  fulfillments?: StoreFulfillment[];
 
   /** True when the cart spanned more than one partner supermarket. */
   requiresConsolidation?: boolean;

@@ -224,12 +224,16 @@ export function StorePortalView({
   };
 
   // Orders segregation
-  const activeOrders = orders.filter(
-    (o) => o.status === "confirmed" || o.status === "ready_for_pickup" || o.status === "pending_payment"
-  );
-  const previousOrders = orders.filter(
-    (o) => o.status === "picked_up" || o.status === "cancelled"
-  );
+  const orderForStoreStatus = (order: Order) =>
+    order.fulfillments?.find((fulfillment) => fulfillment.storeId === store?.id)?.status || order.status;
+  const activeOrders = orders.filter((o) => {
+    const status = orderForStoreStatus(o);
+    return status === "confirmed" || status === "ready_for_pickup" || status === "pending_payment";
+  });
+  const previousOrders = orders.filter((o) => {
+    const status = orderForStoreStatus(o);
+    return status === "picked_up" || status === "cancelled";
+  });
 
   const filteredProducts = products.filter(
     (p) =>
@@ -607,7 +611,13 @@ export function StorePortalView({
                       <p className="text-xs text-slate-400">Orders placed by customers will appear here in real-time.</p>
                     </div>
                   ) : (
-                    (orderSubTab === "active" ? activeOrders : previousOrders).map((order) => (
+                    (orderSubTab === "active" ? activeOrders : previousOrders).map((order) => {
+                      const storeFulfillment = order.fulfillments?.find((fulfillment) => fulfillment.storeId === store.id);
+                      const storeItems = order.requiresConsolidation
+                        ? order.items.filter((item) => item.storeId === store.id)
+                        : order.items;
+                      const storeStatus = storeFulfillment?.status || order.status;
+                      return (
                       <div
                         key={order.id}
                         className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-2xs"
@@ -617,12 +627,12 @@ export function StorePortalView({
                             <span className="font-black text-base text-slate-900">{order.id}</span>
                             <span
                               className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md ${
-                                order.status === "picked_up"
+                                storeStatus === "picked_up"
                                   ? "bg-emerald-100 text-emerald-800"
                                   : "bg-amber-100 text-amber-800"
                               }`}
                             >
-                              {order.status.replaceAll("_", " ")}
+                              {storeStatus.replaceAll("_", " ")}
                             </span>
                           </div>
 
@@ -646,7 +656,7 @@ export function StorePortalView({
                           <div>
                             <span className="text-[10px] uppercase font-bold text-slate-400 block">4-Digit Verification PIN</span>
                             <span className="font-mono font-black text-sm text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-md inline-block mt-0.5">
-                              {order.pickupVerificationCode}
+                              {storeFulfillment?.pickupCode || order.pickupVerificationCode}
                             </span>
                           </div>
                         </div>
@@ -657,7 +667,7 @@ export function StorePortalView({
                             Items to pack:
                           </p>
                           <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
-                            {order.items.map((item, idx) => (
+                            {storeItems.map((item, idx) => (
                               <div
                                 key={idx}
                                 className="flex items-center justify-between p-3 bg-white text-xs"
@@ -681,7 +691,7 @@ export function StorePortalView({
                           </div>
                         </div>
 
-                        {order.status !== "picked_up" && order.status !== "cancelled" && (
+                        {storeStatus !== "picked_up" && storeStatus !== "cancelled" && (
                           <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
                             <input
                               inputMode="numeric"
@@ -731,10 +741,10 @@ export function StorePortalView({
 
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs font-bold">
                           <span className="text-slate-500">Total Store Value:</span>
-                          <span className="text-base font-black text-slate-900">{formatNaira(order.total)}</span>
+                          <span className="text-base font-black text-slate-900">{formatNaira(storeFulfillment?.subtotal ?? order.total)}</span>
                         </div>
                       </div>
-                    ))
+                    )})
                   )}
                 </div>
               </div>
