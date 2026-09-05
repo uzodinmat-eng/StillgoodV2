@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "./auth";
 import { customerIsAdmin } from "./auth-utils";
 import { loadCatalog } from "./db/catalog";
-import { findOrdersForStore } from "./db/orders";
+import { completeStorePickup, findOrdersForStore } from "./db/orders";
 import { findProductById, findProductsForStore, insertProduct, updateProduct } from "./db/products";
 import { findStoreById, findStoreByOwnerId, listStores } from "./db/stores";
 import { createServerSupabase } from "./supabase/server";
@@ -210,6 +210,31 @@ export async function updateProductAction(
   }
 }
 
+export async function completeStorePickupAction(input: {
+  orderId: string;
+  storeId: string;
+  pickupCode: string;
+}): Promise<{ success: boolean; order?: Order; error?: string }> {
+  try {
+    const { store } = await getAuthorizedStore(input.storeId);
+    if (store.status !== "approved") {
+      return { success: false, error: "This supermarket is not approved for pickup handoff." };
+    }
+    const code = input.pickupCode.trim();
+    if (!/^\d{4}$/.test(code)) {
+      return { success: false, error: "Enter the customer's 4-digit pickup code." };
+    }
+    const order = await completeStorePickup(input.orderId, store.id, code);
+    if (!order) return { success: false, error: "Pickup could not be completed." };
+    revalidatePath("/store");
+    revalidatePath("/");
+    revalidatePath(`/order/${order.id}`);
+    return { success: true, order };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Pickup verification failed.";
+    return { success: false, error: message.replace(/^.*ERROR:\s*/i, "") };
+  }
+}
 export async function changeStorePasswordAction(newPassword: string): Promise<{ success: boolean; error?: string }> {
   if (!newPassword || newPassword.length < 6) {
     return { success: false, error: "Password must be at least 6 characters." };

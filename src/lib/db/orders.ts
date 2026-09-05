@@ -261,6 +261,13 @@ export async function listAllOrders(limit = 100): Promise<Order[]> {
   return orders;
 }
 
+export async function completeStorePickup(orderId: string, storeId: string, pickupCode: string): Promise<Order | null> {
+  const result = await queryOne<{ order_id: string }>(
+    `select order_id from public.complete_store_pickup($1, $2, $3)`,
+    [orderId, storeId, pickupCode]
+  );
+  return result ? findOrderById(result.order_id) : null;
+}
 export async function updateOrderStatus(
   orderId: string,
   status: Order["status"],
