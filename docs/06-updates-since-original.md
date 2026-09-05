@@ -32,7 +32,10 @@ Physical tables already on the hosted project (text ids, not the illustrative
 UUIDs in `02-data-model.md`):
 
 - `stores`, `categories`, `products`, `store_review_scores`, `store_reviews`
-- `customers` (`auth_user_id`, nullable phone) — buyer profile, not `profiles`
+- `stores` extras (store portal): `status` (`pending`|`approved`|`suspended`),
+  `owner_id`, `cac_number`, `store_type`
+- `customers` (`auth_user_id`, nullable phone) — buyer / store-owner profile,
+  not `profiles`; optional `store_id` for store owners
 - `orders` (`id` = `SG-XXXXX`), `order_items`
 - `wallet_balance` column on customers (mocked ₦0 until Paystack)
 - Extra order columns from the web prototype: `platform_fee`,
