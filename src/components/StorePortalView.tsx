@@ -30,6 +30,7 @@ import { logout } from "@/lib/auth";
 import { formatNaira } from "@/lib/pricing";
 import {
   changeStorePasswordAction,
+  completeStorePickupAction,
   createProductAction,
   updateProductAction,
 } from "@/lib/store";
@@ -96,6 +97,8 @@ export function StorePortalView({
 
   // Search Filter
   const [searchQuery, setSearchQuery] = useState("");
+  const [pickupCodes, setPickupCodes] = useState<Record<string, string>>({});
+  const [pickupMessages, setPickupMessages] = useState<Record<string, string>>({});
 
   const resetForm = () => {
     setEditingProduct(null);
@@ -677,6 +680,54 @@ export function StorePortalView({
                             ))}
                           </div>
                         </div>
+
+                        {order.status !== "picked_up" && order.status !== "cancelled" && (
+                          <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100">
+                            <input
+                              inputMode="numeric"
+                              maxLength={4}
+                              value={pickupCodes[order.id] || ""}
+                              onChange={(e) =>
+                                setPickupCodes((current) => ({
+                                  ...current,
+                                  [order.id]: e.target.value.replace(/\D/g, "").slice(0, 4),
+                                }))
+                              }
+                              placeholder="4-digit customer code"
+                              className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold focus:border-emerald-500 focus:bg-white focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              disabled={isPending || (pickupCodes[order.id] || "").length !== 4}
+                              onClick={() => {
+                                setPickupMessages((current) => ({ ...current, [order.id]: "" }));
+                                startTransition(async () => {
+                                  const result = await completeStorePickupAction({
+                                    orderId: order.id,
+                                    storeId: store.id,
+                                    pickupCode: pickupCodes[order.id] || "",
+                                  });
+                                  setPickupMessages((current) => ({
+                                    ...current,
+                                    [order.id]: result.success
+                                      ? "Pickup verified. Stock decremented and order completed."
+                                      : result.error || "Pickup verification failed.",
+                                  }));
+                                  if (result.success) router.refresh();
+                                });
+                              }}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                              Verify pickup & decrement stock
+                            </button>
+                          </div>
+                        )}
+                        {pickupMessages[order.id] && (
+                          <p className={`text-xs font-bold ${pickupMessages[order.id].startsWith("Pickup verified") ? "text-emerald-700" : "text-rose-700"}`}>
+                            {pickupMessages[order.id]}
+                          </p>
+                        )}
 
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs font-bold">
                           <span className="text-slate-500">Total Store Value:</span>
