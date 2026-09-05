@@ -228,7 +228,12 @@ export function StorePortalView({
     order.fulfillments?.find((fulfillment) => fulfillment.storeId === store?.id)?.status || order.status;
   const activeOrders = orders.filter((o) => {
     const status = orderForStoreStatus(o);
-    return status === "confirmed" || status === "ready_for_pickup" || status === "pending_payment";
+    return (
+      status === "pending" ||
+      status === "ready_for_pickup" ||
+      status === "confirmed" ||
+      status === "pending_payment"
+    );
   });
   const previousOrders = orders.filter((o) => {
     const status = orderForStoreStatus(o);
