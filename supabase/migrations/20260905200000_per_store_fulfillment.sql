@@ -48,7 +48,8 @@ declare
 begin
   select * into v_fulfillment
   from public.store_fulfillments
-  where order_id = p_order_id and store_id = p_store_id
+  where store_fulfillments.order_id = p_order_id
+    and store_fulfillments.store_id = p_store_id
   for update;
 
   if not found then raise exception 'Order not found for this store'; end if;
@@ -57,7 +58,11 @@ begin
   end if;
   if v_fulfillment.pickup_code <> trim(p_pickup_code) then raise exception 'Invalid pickup code'; end if;
 
-  for v_item in select product_id, quantity from public.order_items where order_id = p_order_id and store_id = p_store_id loop
+  for v_item in
+    select oi.product_id, oi.quantity
+    from public.order_items oi
+    where oi.order_id = p_order_id and oi.store_id = p_store_id
+  loop
     update public.products set stock_quantity = stock_quantity - v_item.quantity, updated_at = v_picked_at
     where id = v_item.product_id and store_id = p_store_id and stock_quantity >= v_item.quantity;
     if not found then raise exception 'Insufficient stock for pickup item'; end if;
@@ -66,7 +71,10 @@ begin
   update public.store_fulfillments set status = 'picked_up', picked_up_at = v_picked_at, updated_at = v_picked_at
   where id = v_fulfillment.id;
 
-  if not exists (select 1 from public.store_fulfillments where order_id = p_order_id and status <> 'picked_up') then
+  if not exists (
+    select 1 from public.store_fulfillments sf
+    where sf.order_id = p_order_id and sf.status <> 'picked_up'
+  ) then
     update public.orders set status = 'picked_up', picked_up_at = v_picked_at, updated_at = v_picked_at where id = p_order_id;
   end if;
 
