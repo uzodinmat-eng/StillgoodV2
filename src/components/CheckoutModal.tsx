@@ -20,10 +20,12 @@ import { getSession } from "@/lib/auth";
 import { useStores } from "@/components/CatalogProvider";
 import {
   addCalendarDays,
+  autoAssignHubBatch,
   getAvailablePickupSlots,
   getLagosDateString,
   needsConsolidation,
   nextAvailablePickupDate,
+  hubBatchLabel,
 } from "@/lib/fulfillment";
 
 interface CheckoutModalProps {
@@ -75,6 +77,16 @@ export function CheckoutModal({
 
     if (!consolidating && originStore) {
       setStoreId(originStore.id);
+    }
+
+    if (consolidating) {
+      // Hub and batch are assigned automatically: ordered at least 30
+      // minutes before a batch's WAT cutoff lands in that batch.
+      const assignment = autoAssignHubBatch();
+      setStoreId(assignment.batch === "noon" ? "hub_noon" : "hub_evening");
+      setPickupDate(assignment.pickupDate);
+      setPickupTimeSlot(assignment.pickupTimeSlot);
+      return;
     }
 
     const earliest = nextAvailablePickupDate(consolidating);
@@ -228,57 +240,26 @@ export function CheckoutModal({
                         .map((store) => store.name)
                         .join(", ")}
                     </strong>
-                    . The fleet runs two daily batches (12:00 PM and 5:00 PM) to
-                    the hub you select below.
+                    . Your order will be batched automatically to the central
+                    pickup hub — you will collect everything in one stop.
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  {stores.map((s) => {
-                    const isSelected = storeId === s.id;
-                    const isOrigin = cartSummary.storesInvolved.some(
-                      (store) => store.id === s.id
-                    );
-                    return (
-                      <label
-                        key={s.id}
-                        className={`flex items-start justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
-                          isSelected
-                            ? "bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500/20"
-                            : "bg-white border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <input
-                            type="radio"
-                            name="storeId"
-                            value={s.id}
-                            checked={isSelected}
-                            onChange={() => setStoreId(s.id)}
-                            className="mt-1 text-emerald-600 focus:ring-emerald-500"
-                          />
-                          <div>
-                            <p className="text-xs font-bold text-slate-900">
-                              {s.name}
-                            </p>
-                            <p className="text-[11px] text-slate-500">
-                              {s.address} ({s.area})
-                            </p>
-                            {isOrigin && (
-                              <p className="text-[10px] font-semibold text-emerald-700 mt-0.5">
-                                Holds items in this order
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <span className="text-[10px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-md">
-                            Hub
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
+                <div className="p-3 rounded-2xl border border-emerald-400 bg-emerald-50 ring-2 ring-emerald-500/20">
+                  <p className="text-xs font-bold text-slate-900">
+                    Stillgood Central Pickup Hub
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Assigned automatically based on when you order.
+                  </p>
+                  <p className="text-[10px] font-semibold text-emerald-700 mt-1">
+                    {hubBatchLabel(
+                      pickupTimeSlot.includes("1:00 PM")
+                        ? "noon"
+                        : "evening"
+                    )}{" "}
+                    · Collection {pickupDate}
+                  </p>
                 </div>
               </>
             ) : (
@@ -312,42 +293,71 @@ export function CheckoutModal({
 
             {consolidating && (
               <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
-                Noon batch cutoff is 11:00 AM Lagos time. Evening batch cutoff is
-                4:00 PM. After cutoff, that window moves to the next day.
+                Your batch is assigned automatically: order at least 30 minutes
+                before the batch cutoff (Lagos time) and it arrives at the hub
+                in that batch&apos;s window. Otherwise it rolls to the next
+                batch.
               </p>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                  Collection Date
-                </label>
-                <input
-                  type="date"
-                  value={pickupDate}
-                  min={todayStr}
-                  onChange={(e) => setPickupDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
-                />
+            {consolidating ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                    Collection Date
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={pickupDate}
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                    Batch Window
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={pickupTimeSlot}
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 cursor-not-allowed"
+                  />
+                </div>
               </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                    Collection Date
+                  </label>
+                  <input
+                    type="date"
+                    value={pickupDate}
+                    min={todayStr}
+                    onChange={(e) => setPickupDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-500 block mb-1">
-                  {consolidating ? "Batch Window" : "Time Window"}
-                </label>
-                <select
-                  value={pickupTimeSlot}
-                  onChange={(e) => setPickupTimeSlot(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none cursor-pointer"
-                >
-                  {availableSlots.map((slot) => (
-                    <option key={`${slot.hubBatch ?? "direct"}-${slot.value}`} value={slot.value}>
-                      {slot.label}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                    Time Window
+                  </label>
+                  <select
+                    value={pickupTimeSlot}
+                    onChange={(e) => setPickupTimeSlot(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  >
+                    {availableSlots.map((slot) => (
+                      <option key={`${slot.hubBatch ?? "direct"}-${slot.value}`} value={slot.value}>
+                        {slot.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="space-y-3">

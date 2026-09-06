@@ -57,7 +57,7 @@ export function DriftPricingModal({
           </div>
 
           <h2 className="text-lg sm:text-xl font-black tracking-tight text-white">
-            Weekly 2.5% Drift Pricing Schedule
+            Weekly Drift Pricing Schedule
           </h2>
           <p className="text-xs text-emerald-200/90 mt-1">
             {product.brand} • {product.name}
@@ -74,7 +74,7 @@ export function DriftPricingModal({
               <span>How Stillgood Drift Pricing Works</span>
             </div>
             <p className="text-slate-600 leading-relaxed font-medium">
-              To guarantee zero retail food waste across Abuja, verified stores list products at an initial base discount. For every week the item remains in stock, the price drops by an additional <strong className="text-emerald-700 font-bold">2.5% automatically</strong> until sold or reaching its safety cutoff date.
+              To guarantee zero retail food waste across Abuja, verified stores list products at an initial base discount. For every week the item remains in stock, the price drops automatically until sold or reaching its safety cutoff date.
             </p>
           </div>
 

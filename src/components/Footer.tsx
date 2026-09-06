@@ -3,11 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { ShieldCheck, MapPin } from "lucide-react";
-import { useStores } from "@/components/CatalogProvider";
 
 export function Footer() {
-  const stores = useStores();
-
   return (
     <footer className="mt-auto bg-slate-900 text-slate-300 border-t border-slate-800">
       
@@ -66,13 +63,11 @@ export function Footer() {
             Partner Supermarkets
           </h4>
           <ul className="space-y-1.5 text-slate-400">
-            {stores.map((s) => (
-              <li key={s.id}>
-                <Link href={`/stores/${s.slug}`} className="hover:text-emerald-400 transition-colors">
-                  {s.name} ({s.area})
-                </Link>
-              </li>
-            ))}
+            <li>
+              <Link href="/stores" className="hover:text-emerald-400 transition-colors">
+                Verified Supermarket Pickup Locations
+              </Link>
+            </li>
           </ul>
         </div>
 
@@ -84,7 +79,7 @@ export function Footer() {
           <ul className="space-y-1.5 text-slate-400">
             <li>
               <Link href="/#drift-pricing" className="hover:text-emerald-400 transition-colors">
-                2.5% Weekly Drift Pricing
+                Weekly Drift Pricing
               </Link>
             </li>
             <li>

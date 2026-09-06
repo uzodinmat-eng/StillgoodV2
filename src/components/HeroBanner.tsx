@@ -35,7 +35,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
 
           <div className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-full text-xs font-black">
             <TrendingDown className="w-3.5 h-3.5" />
-            <span>2.5% Weekly Dynamic Price Drift</span>
+            <span>Weekly Dynamic Price Drift</span>
           </div>
         </div>
 
@@ -44,7 +44,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1]">
             Rescue Groceries. <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300">
-              Save 30% to 75% in Nigeria.
+              Save Big in Nigeria.
             </span>
           </h1>
           <p className="text-sm sm:text-base lg:text-lg text-emerald-100/90 font-medium max-w-2xl leading-relaxed">
@@ -89,7 +89,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
               <TrendingDown className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white">2.5% Weekly Drift</p>
+              <p className="text-xs font-bold text-white">Weekly Drift</p>
               <p className="text-[11px] text-amber-200/70">Prices drop every 7 days</p>
             </div>
           </div>

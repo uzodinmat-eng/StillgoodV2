@@ -20,7 +20,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShoppingBag,
-  Sparkles,
   Store as StoreIcon,
   X,
 } from "lucide-react";
@@ -450,7 +449,7 @@ export function StorePortalView({
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Live Inventory & Deals</h2>
                     <p className="text-xs text-slate-500">
-                      Items listed here automatically decay by 2.5% weekly and appear in Stillgood search and catalog.
+                      Items listed here automatically decay in price weekly and appear in Stillgood search and catalog.
                     </p>
                   </div>
 
@@ -864,7 +863,7 @@ export function StorePortalView({
                 {editingProduct ? `Edit ${editingProduct.name}` : "List Short-Dated Item on Marketplace"}
               </h3>
               <p className="text-xs text-slate-500">
-                Item will automatically decay 2.5% weekly as it approaches Best-Before / Expiry.
+                Item price decays automatically weekly as it approaches Best-Before / Expiry.
               </p>
             </div>
 

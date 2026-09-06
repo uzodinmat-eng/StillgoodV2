@@ -13,6 +13,7 @@ export interface PickupSlot {
   label: string;
   hubBatch: HubBatch | null;
   cutoffHour?: number;
+  cutoffMinute?: number;
 }
 
 export const LAGOS_TIME_ZONE = "Africa/Lagos";
@@ -30,12 +31,14 @@ export const CONSOLIDATION_BATCHES: PickupSlot[] = [
     label: "Noon batch (12:00 PM) · pickup 1:00 PM – 4:00 PM",
     hubBatch: "noon",
     cutoffHour: 11,
+    cutoffMinute: 30,
   },
   {
     value: "5:30 PM – 9:00 PM",
     label: "Evening batch (5:00 PM) · pickup 5:30 PM – 9:00 PM",
     hubBatch: "evening",
     cutoffHour: 16,
+    cutoffMinute: 30,
   },
 ];
 
@@ -79,7 +82,8 @@ export function getAvailablePickupSlots(options: {
   }
 
   const today = getLagosDateString(now);
-  const hour = getLagosHour(now);
+  const { hour, minute } = getLagosTimeParts(now);
+  const nowMinutes = hour * 60 + minute;
 
   if (pickupDate > today) {
     return CONSOLIDATION_BATCHES;
@@ -89,7 +93,59 @@ export function getAvailablePickupSlots(options: {
     return [];
   }
 
-  return CONSOLIDATION_BATCHES.filter((slot) => hour < (slot.cutoffHour ?? 24));
+  return CONSOLIDATION_BATCHES.filter((slot) => {
+    const cutoff =
+      (slot.cutoffHour ?? 24) * 60 + (slot.cutoffMinute ?? 0);
+    return nowMinutes < cutoff;
+  });
+}
+
+export function getLagosTimeParts(now: Date = new Date()): {
+  hour: number;
+  minute: number;
+} {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: LAGOS_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const hour = parseInt(parts.find((part) => part.type === "hour")?.value ?? "0", 10);
+  const minute = parseInt(parts.find((part) => part.type === "minute")?.value ?? "0", 10);
+  return { hour, minute };
+}
+
+/**
+ * Automatically assigns the consolidation batch for an order placed "now".
+ * Ordered at least 30 minutes before a batch's cutoff (WAT) => that batch,
+ * otherwise the next available batch (possibly tomorrow).
+ */
+export function autoAssignHubBatch(
+  now: Date = new Date()
+): { batch: HubBatch; pickupDate: string; pickupTimeSlot: string } {
+  const { hour, minute } = getLagosTimeParts(now);
+  const nowMinutes = hour * 60 + minute;
+  const today = getLagosDateString(now);
+
+  for (const slot of CONSOLIDATION_BATCHES) {
+    const cutoff = (slot.cutoffHour ?? 24) * 60 + (slot.cutoffMinute ?? 0) - 30;
+    if (nowMinutes < cutoff) {
+      return {
+        batch: slot.hubBatch as HubBatch,
+        pickupDate: today,
+        pickupTimeSlot: slot.value,
+      };
+    }
+  }
+
+  // Past both cutoffs: first batch tomorrow.
+  const tomorrow = addCalendarDays(today, 1);
+  const first = CONSOLIDATION_BATCHES[0];
+  return {
+    batch: first.hubBatch as HubBatch,
+    pickupDate: tomorrow,
+    pickupTimeSlot: first.value,
+  };
 }
 
 export function nextAvailablePickupDate(

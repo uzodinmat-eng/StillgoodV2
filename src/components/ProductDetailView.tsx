@@ -19,7 +19,6 @@ import {
 import { Navbar } from "@/components/Navbar";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
-import { DriftPricingModal } from "@/components/DriftPricingModal";
 import { ProductCard } from "@/components/ProductCard";
 import { Footer } from "@/components/Footer";
 import { addToCart, getCart } from "@/lib/actions";
@@ -68,10 +67,6 @@ export function ProductDetailView({
   const [cartSummary, setCartSummary] = useState<CartSummary>(emptyCart);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [driftOpen, setDriftOpen] = useState(false);
-  const [activeDriftProduct, setActiveDriftProduct] = useState<Product | null>(
-    null
-  );
 
   if (seenProductId !== product.id) {
     setSeenProductId(product.id);
@@ -210,10 +205,6 @@ export function ProductDetailView({
 
             <button
               type="button"
-              onClick={() => {
-                setActiveDriftProduct(product);
-                setDriftOpen(true);
-              }}
               className="w-full flex items-center justify-between p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-left cursor-pointer"
             >
               <span className="flex items-center gap-2">
@@ -222,7 +213,7 @@ export function ProductDetailView({
                 </span>
                 <span>
                   <span className="block text-[11px] font-black text-emerald-950">
-                    2.5% weekly drift
+                    Weekly drift pricing
                   </span>
                   <span className="block text-[11px] text-emerald-800 font-medium">
                     Next drop in {drift.nextDropDays} day
@@ -277,7 +268,6 @@ export function ProductDetailView({
                     key={note}
                     className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg"
                   >
-                    <Sparkles className="w-3 h-3 text-amber-500" />
                     {note}
                   </li>
                 ))}
@@ -385,10 +375,6 @@ export function ProductDetailView({
                 <ProductCard
                   key={related.id}
                   product={related}
-                  onOpenDriftModal={(prod) => {
-                    setActiveDriftProduct(prod);
-                    setDriftOpen(true);
-                  }}
                   onProductAddedToCart={refreshCart}
                 />
               ))}
@@ -414,14 +400,6 @@ export function ProductDetailView({
         cartSummary={cartSummary}
         onOrderCreated={() => {
           refreshCart();
-        }}
-      />
-      <DriftPricingModal
-        product={activeDriftProduct}
-        isOpen={driftOpen}
-        onClose={() => {
-          setDriftOpen(false);
-          setActiveDriftProduct(null);
         }}
       />
     </div>

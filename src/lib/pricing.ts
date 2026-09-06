@@ -173,7 +173,7 @@ export function generateDriftSchedule({
 
     let label = `Week ${week + 1}`;
     if (week === 0) label = "Initial Listing (Base)";
-    else label = `Drop #${week} (+2.5%)`;
+    else label = `Drop #${week}`;
 
     steps.push({
       date: formattedDate,

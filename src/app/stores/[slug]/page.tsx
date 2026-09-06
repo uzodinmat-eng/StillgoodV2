@@ -7,18 +7,11 @@ import { useParams } from "next/navigation";
 import { 
   Building2, 
   MapPin, 
-  Star, 
-  Clock, 
-  ArrowLeft, 
-  ShieldCheck, 
-  Sparkles,
-  TrendingDown
+  ArrowLeft
 } from "lucide-react";
 import { useProducts, useStores } from "@/components/CatalogProvider";
 import { ProductCard } from "@/components/ProductCard";
-import { DriftPricingModal } from "@/components/DriftPricingModal";
 import { StoreReviewsModal } from "@/components/StoreReviewsModal";
-import { Product } from "@/lib/types";
 
 export default function StoreDetailPage() {
   const params = useParams();
@@ -27,7 +20,6 @@ export default function StoreDetailPage() {
   const store = stores.find((s) => s.slug === slug || s.id === slug) || stores[0];
 
   const products = useProducts().filter((p) => store && p.storeId === store.id);
-  const [activeDriftProduct, setActiveDriftProduct] = useState<Product | null>(null);
   const [reviewsOpen, setReviewsOpen] = useState(false);
 
   if (!store) {
@@ -77,17 +69,6 @@ export default function StoreDetailPage() {
             </div>
 
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 shrink-0 text-xs space-y-2">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-300">Customer Rating</span>
-                <button
-                  type="button"
-                  onClick={() => setReviewsOpen(true)}
-                  className="font-black text-amber-300 flex items-center gap-1 hover:underline cursor-pointer"
-                >
-                  <Star className="w-3.5 h-3.5 fill-amber-300" />
-                  <span>{store.rating} ({store.reviewCount} reviews)</span>
-                </button>
-              </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-300">Operating Hours</span>
                 <span className="font-bold text-white">{store.openHours}</span>
@@ -139,7 +120,6 @@ export default function StoreDetailPage() {
                 <ProductCard
                   key={product.id}
                   product={product}
-                  onOpenDriftModal={(p) => setActiveDriftProduct(p)}
                 />
               ))}
             </div>
@@ -147,12 +127,6 @@ export default function StoreDetailPage() {
         </div>
 
       </main>
-
-      <DriftPricingModal
-        product={activeDriftProduct}
-        isOpen={!!activeDriftProduct}
-        onClose={() => setActiveDriftProduct(null)}
-      />
 
       <StoreReviewsModal
         store={store}

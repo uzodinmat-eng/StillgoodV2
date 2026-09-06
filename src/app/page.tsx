@@ -1,39 +1,26 @@
 "use client";
 
-import React, { useState, useEffect, useTransition, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { 
-  Sparkles, 
-  TrendingDown, 
-  MapPin, 
-  ShieldCheck, 
-  Store as StoreIcon, 
-  Clock, 
+import {
+  TrendingDown,
   ArrowRight,
-  Flame,
-  CheckCircle2,
   PackageX,
-  Truck,
-  Building2,
-  Star,
-  Bike
+  Truck
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { HeroBanner } from "@/components/HeroBanner";
 import { CategoryTiles } from "@/components/CategoryTiles";
 import { StoreFilterBar, SortField, SortDirection } from "@/components/StoreFilterBar";
 import { ProductCard } from "@/components/ProductCard";
-import { DriftPricingModal } from "@/components/DriftPricingModal";
-import { StoreReviewsModal } from "@/components/StoreReviewsModal";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { Footer } from "@/components/Footer";
 
 import { useProducts, useStores } from "@/components/CatalogProvider";
-import { Product, CartSummary, Store } from "@/lib/types";
+import { CartSummary } from "@/lib/types";
 import { getCart } from "@/lib/actions";
-import { formatNaira } from "@/lib/pricing";
 
 export default function HomePage() {
   const products = useProducts();
@@ -59,8 +46,6 @@ export default function HomePage() {
   // Modals & Drawers
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
-  const [activeDriftProduct, setActiveDriftProduct] = useState<Product | null>(null);
-  const [reviewModalStore, setReviewModalStore] = useState<Store | null>(null);
 
   // Fetch cart on mount & on updates
   const refreshCart = async () => {
@@ -214,7 +199,6 @@ export default function HomePage() {
               <ProductCard
                 key={product.id}
                 product={product}
-                onOpenDriftModal={(prod) => setActiveDriftProduct(prod)}
                 onProductAddedToCart={refreshCart}
               />
             ))}
@@ -232,7 +216,7 @@ export default function HomePage() {
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-              Why do Stillgood prices drop 2.5% every single week?
+              Why do Stillgood prices drop every single week?
             </h2>
 
             <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed font-medium">
@@ -243,14 +227,14 @@ export default function HomePage() {
               <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
                 <span className="text-emerald-400 font-black text-sm">Step 1: Base Markdown</span>
                 <p className="text-[11px] text-slate-300 mt-1">
-                  Listed at initial 30%–50% off retail price.
+                  Listed at a deep discount off retail price.
                 </p>
               </div>
 
               <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-                <span className="text-amber-300 font-black text-sm">Step 2: Weekly +2.5%</span>
+                <span className="text-amber-300 font-black text-sm">Step 2: Weekly Drop</span>
                 <p className="text-[11px] text-slate-300 mt-1">
-                  Automated price drop every Monday.
+                  Automated price reduction every Monday.
                 </p>
               </div>
 
@@ -306,23 +290,6 @@ export default function HomePage() {
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                          {store.area}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setReviewModalStore(store);
-                          }}
-                          className="text-xs font-bold text-slate-700 flex items-center gap-1 hover:text-emerald-800 hover:underline cursor-pointer"
-                          title="Read customer & rider reviews"
-                        >
-                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                          <span>{store.rating} ({store.reviewCount})</span>
-                        </button>
-                      </div>
                       <h4 className="text-xs font-black text-slate-900 mt-1 truncate">
                         {store.name}
                       </h4>
@@ -372,20 +339,6 @@ export default function HomePage() {
         onOrderCreated={() => {
           refreshCart();
         }}
-      />
-
-      {/* 2.5% Drift Pricing Timeline Modal */}
-      <DriftPricingModal
-        product={activeDriftProduct}
-        isOpen={!!activeDriftProduct}
-        onClose={() => setActiveDriftProduct(null)}
-      />
-
-      {/* Store Reviews Modal */}
-      <StoreReviewsModal
-        store={reviewModalStore}
-        isOpen={!!reviewModalStore}
-        onClose={() => setReviewModalStore(null)}
       />
 
       {/* Footer */}
