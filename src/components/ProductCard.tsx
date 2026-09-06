@@ -5,13 +5,12 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ShoppingBag,
-  TrendingDown,
   MapPin,
   Check,
   Minus,
   Plus
 } from "lucide-react";
-import { Product, Store } from "@/lib/types";
+import { Product } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
 import { useStoreById } from "@/components/CatalogProvider";
 import { addToCart } from "@/lib/actions";
@@ -69,12 +68,6 @@ export function ProductCard({
         {/* Top Badges */}
         <div className="absolute top-2.5 left-2.5 right-2.5 flex items-start justify-between gap-2 pointer-events-none">
           
-          {/* Discount Ribbon */}
-          <div className="inline-flex items-center gap-1 bg-emerald-600 text-white px-2.5 py-1 rounded-xl text-xs font-black shadow-md">
-            <TrendingDown className="w-3.5 h-3.5" />
-            <span>-{product.discountPercent}%</span>
-          </div>
-
           {/* Storage Condition Badge */}
           <span className="inline-flex items-center gap-1 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
             {product.storageCondition === "frozen" ? "🧊 Frozen" : product.storageCondition === "chilled" ? "❄️ Chilled" : "📦 Ambient"}
@@ -119,26 +112,19 @@ export function ProductCard({
         </div>
 
         {/* Price & Form Action Section */}
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
+        <div className="pt-3 border-t border-slate-100 space-y-3">
           
           {/* Price Numbers */}
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-                {formatNaira(product.currentPrice)}
-              </span>
-              <span className="text-xs text-slate-400 line-through font-semibold">
-                {formatNaira(product.originalPrice)}
-              </span>
-            </div>
+          <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+            {formatNaira(product.currentPrice)}
           </div>
 
           {/* Quantity + Add to Cart */}
-          <form onSubmit={handleAddToCart} className="flex items-center gap-1.5">
+          <form onSubmit={handleAddToCart} className="flex w-full items-center gap-2">
             <input type="hidden" name="productId" value={product.id} />
             <input type="hidden" name="quantity" value={quantity} />
 
-            <div className="inline-flex items-center border border-slate-200 rounded-xl overflow-hidden shrink-0">
+            <div className="inline-flex min-w-0 flex-1 items-center justify-between border border-slate-200 rounded-xl overflow-hidden">
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -165,7 +151,7 @@ export function ProductCard({
             <button
               type="submit"
               disabled={isPending || product.stockQuantity === 0}
-              className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 ${
+              className={`inline-flex shrink-0 items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 ${
                 isAdded
                   ? "bg-emerald-700 text-white"
                   : product.stockQuantity === 0
