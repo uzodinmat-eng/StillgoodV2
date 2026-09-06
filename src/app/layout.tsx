@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Stillgood | Abuja's Near-Expiry Grocery Rescue Marketplace",
   description:
-    "Save 30% to 75% on near-expiry groceries from top supermarkets across Abuja, FCT. 100% verified store pickup.",
+    "Save big on near-expiry groceries from top supermarkets across Abuja, FCT. 100% verified store pickup.",
   keywords: [
     "Stillgood",
     "Abuja groceries",

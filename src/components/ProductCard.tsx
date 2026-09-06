@@ -3,32 +3,26 @@
 import React, { useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { 
-  ShoppingBag, 
-  TrendingDown, 
-  Info, 
-  MapPin, 
-  ShieldCheck, 
-  Check, 
-  Sparkles,
-  Calendar,
-  AlertTriangle,
-  Clock
+import {
+  ShoppingBag,
+  TrendingDown,
+  MapPin,
+  Check,
+  Minus,
+  Plus
 } from "lucide-react";
 import { Product, Store } from "@/lib/types";
-import { formatNaira, getUrgencyBadge } from "@/lib/pricing";
+import { formatNaira } from "@/lib/pricing";
 import { useStoreById } from "@/components/CatalogProvider";
 import { addToCart } from "@/lib/actions";
 
 interface ProductCardProps {
   product: Product;
-  onOpenDriftModal: (product: Product) => void;
   onProductAddedToCart?: () => void;
 }
 
 export function ProductCard({
   product,
-  onOpenDriftModal,
   onProductAddedToCart,
 }: ProductCardProps) {
   const [isPending, startTransition] = useTransition();
@@ -36,7 +30,6 @@ export function ProductCard({
   const [quantity, setQuantity] = useState(1);
 
   const store = useStoreById(product.storeId);
-  const urgency = getUrgencyBadge(product.daysRemaining, product.dateType);
 
   const handleAddToCart = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,45 +118,6 @@ export function ProductCard({
           </Link>
         </div>
 
-        {/* Expiry Urgency Pill */}
-        <div className={`flex items-center justify-between px-3 py-1.5 rounded-xl border text-xs font-bold ${urgency.bgColor}`}>
-          <div className="flex items-center gap-1.5">
-            <Clock className={`w-3.5 h-3.5 ${urgency.textColor}`} />
-            <span>{urgency.label}</span>
-          </div>
-          <span className="text-[10px] uppercase tracking-wider font-extrabold opacity-80">
-            {urgency.tag}
-          </span>
-        </div>
-
-        {/* 2.5% Weekly Drift Pricing Feature Bar */}
-        <div 
-          onClick={() => onOpenDriftModal(product)}
-          className="group/drift flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/80 transition-all cursor-pointer"
-        >
-          <div className="flex items-center gap-2">
-            <div className="p-1 rounded-lg bg-emerald-600 text-white shrink-0">
-              <TrendingDown className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-emerald-950 flex items-center gap-1">
-                2.5% Weekly Drift Markdown
-              </p>
-              <p className="text-[10px] text-emerald-800 font-medium">
-                Next scheduled price drop in 3 days
-              </p>
-            </div>
-          </div>
-          
-          <button 
-            type="button"
-            className="p-1 rounded-lg text-emerald-700 group-hover/drift:bg-emerald-200 transition-colors"
-            aria-label="View pricing schedule"
-          >
-            <Info className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
         {/* Price & Form Action Section */}
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
           
@@ -177,16 +131,37 @@ export function ProductCard({
                 {formatNaira(product.originalPrice)}
               </span>
             </div>
-            <p className="text-[10px] font-bold text-emerald-700">
-              You save {formatNaira(product.originalPrice - product.currentPrice)}
-            </p>
           </div>
 
-          {/* Form Action Add to Cart */}
+          {/* Quantity + Add to Cart */}
           <form onSubmit={handleAddToCart} className="flex items-center gap-1.5">
             <input type="hidden" name="productId" value={product.id} />
             <input type="hidden" name="quantity" value={quantity} />
-            
+
+            <div className="inline-flex items-center border border-slate-200 rounded-xl overflow-hidden shrink-0">
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                disabled={isPending || quantity <= 1 || product.stockQuantity === 0}
+                className="px-2 py-2.5 text-slate-700 hover:bg-slate-100 cursor-pointer disabled:opacity-40"
+                aria-label="Decrease quantity"
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="min-w-[1.75rem] text-center text-xs font-black text-slate-900">
+                {quantity}
+              </span>
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => Math.min(product.stockQuantity, q + 1))}
+                disabled={isPending || quantity >= product.stockQuantity || product.stockQuantity === 0}
+                className="px-2 py-2.5 text-slate-700 hover:bg-slate-100 cursor-pointer disabled:opacity-40"
+                aria-label="Increase quantity"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={isPending || product.stockQuantity === 0}

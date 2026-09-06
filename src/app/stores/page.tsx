@@ -6,10 +6,8 @@ import Image from "next/image";
 import { 
   Building2, 
   MapPin, 
-  Star, 
   Clock, 
   ArrowRight, 
-  ShieldCheck,
   Search,
   ArrowLeft
 } from "lucide-react";
@@ -116,15 +114,6 @@ export default function StoresDirectoryPage() {
                   <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-black px-2.5 py-1 rounded-xl">
                     {store.area}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setReviewStore(store)}
-                    className="absolute top-3 right-3 bg-white/95 backdrop-blur-md text-slate-900 text-xs font-black px-2.5 py-1 rounded-xl shadow-xs flex items-center gap-1 hover:bg-emerald-50 hover:text-emerald-800 transition-colors cursor-pointer"
-                    title="Read customer reviews"
-                  >
-                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    <span>{store.rating} ({store.reviewCount})</span>
-                  </button>
                 </div>
 
                 <div className="p-5 space-y-3">
