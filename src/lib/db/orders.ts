@@ -1,4 +1,4 @@
-import { Order, OrderItemRecord } from "@/lib/types";
+import { Order, OrderItemRecord, StoreFulfillment } from "@/lib/types";
 import { asInt, dateOnly, execute, isoTimestamp, query, queryOne } from "./client";
 
 interface OrderRow {
@@ -27,6 +27,14 @@ interface OrderRow {
   picked_up_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
+}
+
+interface StoreFulfillmentRow {
+  store_id: string;
+  subtotal: number | string;
+  status: StoreFulfillment["status"];
+  pickup_code: string;
+  picked_up_at: Date | string | null;
 }
 
 interface OrderItemRow {
@@ -101,6 +109,21 @@ function mapOrder(row: OrderRow, items: OrderItemRecord[]): Order {
     createdAt: isoTimestamp(row.created_at),
     updatedAt: isoTimestamp(row.updated_at),
   };
+}
+
+async function fulfillmentsForOrder(orderId: string): Promise<StoreFulfillment[]> {
+  const rows = await query<StoreFulfillmentRow>(
+    `select store_id, subtotal, status, pickup_code, picked_up_at
+     from public.store_fulfillments where order_id = $1 order by store_id`,
+    [orderId]
+  );
+  return rows.map((row) => ({
+    storeId: row.store_id,
+    subtotal: asInt(row.subtotal),
+    status: row.status,
+    pickupCode: row.pickup_code,
+    pickedUpAt: row.picked_up_at ? isoTimestamp(row.picked_up_at) : undefined,
+  }));
 }
 
 async function itemsForOrder(orderId: string): Promise<OrderItemRecord[]> {
@@ -194,6 +217,17 @@ export async function insertOrder(order: Order): Promise<Order> {
     );
   }
 
+  await execute(
+    `insert into public.store_fulfillments (id, order_id, store_id, subtotal, status, pickup_code)
+     select $1 || '-' || oi.store_id, oi.order_id, oi.store_id, sum(oi.price * oi.quantity),
+            'pending', $2
+     from public.order_items oi
+     where oi.order_id = $1
+     group by oi.order_id, oi.store_id
+     on conflict (order_id, store_id) do nothing`,
+    [order.id, order.pickupVerificationCode]
+  );
+
   return order;
 }
 
@@ -203,7 +237,9 @@ export async function findOrderById(orderId: string): Promise<Order | null> {
     [orderId]
   );
   if (!row) return null;
-  return mapOrder(row, await itemsForOrder(row.id));
+  const order = mapOrder(row, await itemsForOrder(row.id));
+  order.fulfillments = await fulfillmentsForOrder(row.id);
+  return order;
 }
 
 export async function findOrdersForCustomer(options: {
@@ -226,7 +262,9 @@ export async function findOrdersForCustomer(options: {
   );
   const orders: Order[] = [];
   for (const row of rows) {
-    orders.push(mapOrder(row, await itemsForOrder(row.id)));
+    const order = mapOrder(row, await itemsForOrder(row.id));
+    order.fulfillments = await fulfillmentsForOrder(row.id);
+    orders.push(order);
   }
   return orders;
 }
@@ -242,7 +280,9 @@ export async function findOrdersForStore(storeId: string, limit = 100): Promise<
   );
   const orders: Order[] = [];
   for (const row of rows) {
-    orders.push(mapOrder(row, await itemsForOrder(row.id)));
+    const order = mapOrder(row, await itemsForOrder(row.id));
+    order.fulfillments = await fulfillmentsForOrder(row.id);
+    orders.push(order);
   }
   return orders;
 }
@@ -256,7 +296,9 @@ export async function listAllOrders(limit = 100): Promise<Order[]> {
   );
   const orders: Order[] = [];
   for (const row of rows) {
-    orders.push(mapOrder(row, await itemsForOrder(row.id)));
+    const order = mapOrder(row, await itemsForOrder(row.id));
+    order.fulfillments = await fulfillmentsForOrder(row.id);
+    orders.push(order);
   }
   return orders;
 }
