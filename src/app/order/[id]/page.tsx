@@ -232,6 +232,14 @@ export default function OrderConfirmationPage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div>
+              <p className="text-xs font-black text-emerald-950">You can keep shopping while this order is awaiting pickup.</p>
+              <p className="text-[11px] text-emerald-800">Additional items are added as a new basket/order and do not change this paid order.</p>
+            </div>
+            <Link href="/" className="rounded-xl bg-emerald-700 px-3 py-2 text-[11px] font-black text-white">Add more items</Link>
+          </div>
+
           {/* Items Summary Table */}
           <div>
             <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-3">

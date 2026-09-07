@@ -75,3 +75,10 @@ export function verifyPaystackWebhook(rawBody: string, signature: string | null)
   const digest = crypto.createHmac("sha512", process.env.PAYSTACK_SECRET_KEY).update(rawBody).digest("hex");
   return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
 }
+
+export async function initiatePaystackTransfer(input: { amountNaira: number; recipientCode: string; reference: string; reason: string }): Promise<{ transfer_code: string }> {
+  return paystackRequest<{ transfer_code: string }>("/transfer", {
+    method: "POST",
+    body: JSON.stringify({ source: "balance", amount: Math.round(input.amountNaira * 100), recipient: input.recipientCode, reference: input.reference, reason: input.reason }),
+  });
+}

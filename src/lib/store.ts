@@ -6,9 +6,10 @@ import { customerIsAdmin } from "./auth-utils";
 import { loadCatalog } from "./db/catalog";
 import { completeStorePickup, decideStoreOrderItem, findOrdersForStore } from "./db/orders";
 import { findProductById, findProductsForStore, insertProduct, updateProduct } from "./db/products";
-import { findStoreById, findStoreByOwnerId, listStores } from "./db/stores";
+import { createStoreWithdrawal, findStoreById, findStoreByOwnerId, getStoreBalances, listStores, markStoreWithdrawal, saveStorePayoutRecipient } from "./db/stores";
 import { createServerSupabase } from "./supabase/server";
 import { Category, Customer, DateType, Order, Product, Store } from "./types";
+import { initiatePaystackTransfer } from "./paystack";
 
 export type ProductListingInput = {
   storeId: string;
@@ -71,6 +72,7 @@ export async function getStorePortalData(targetStoreId?: string): Promise<{
   categories: Category[];
   allStores: Store[];
   error?: string;
+  balances?: { confirmed: number; available: number };
 }> {
   const customer = await getSession();
   if (!customer) {
@@ -86,11 +88,12 @@ export async function getStorePortalData(targetStoreId?: string): Promise<{
 
   try {
     const { store } = await getAuthorizedStore(targetStoreId);
-    const [products, orders, catalog, allStores] = await Promise.all([
+    const [products, orders, catalog, allStores, balances] = await Promise.all([
       findProductsForStore(store.id),
       findOrdersForStore(store.id, 100),
       loadCatalog(),
       customerIsAdmin(customer) ? listStores({ all: true }) : Promise.resolve([store]),
+      getStoreBalances(store.id),
     ]);
 
     return {
@@ -100,6 +103,7 @@ export async function getStorePortalData(targetStoreId?: string): Promise<{
       orders,
       categories: catalog.categories,
       allStores,
+      balances,
     };
   } catch (error) {
     const catalog = await loadCatalog();
@@ -266,4 +270,34 @@ export async function changeStorePasswordAction(newPassword: string): Promise<{ 
       error: error instanceof Error ? error.message : "Failed to update password.",
     };
   }
+}
+
+export async function withdrawStoreBalanceAction(input: { storeId: string; amount: number }): Promise<{ success: boolean; error?: string; transferCode?: string }> {
+  try {
+    const { store } = await getAuthorizedStore(input.storeId);
+    const balances = await getStoreBalances(store.id);
+    if (!store.paystackRecipientCode) return { success: false, error: "Attach a Paystack payout account before withdrawing." };
+    if (!Number.isInteger(input.amount) || input.amount <= 0) return { success: false, error: "Enter a valid withdrawal amount." };
+    if (input.amount > balances.available) return { success: false, error: "Withdrawal exceeds your available balance." };
+    const withdrawalId = await createStoreWithdrawal(store.id, input.amount, store.paystackRecipientCode);
+    try {
+      const transfer = await initiatePaystackTransfer({ amountNaira: input.amount, recipientCode: store.paystackRecipientCode, reference: withdrawalId, reason: `Stillgood payout for ${store.name}` });
+      await markStoreWithdrawal(withdrawalId, "success", transfer.transfer_code);
+      return { success: true, transferCode: transfer.transfer_code };
+    } catch (error) {
+      await markStoreWithdrawal(withdrawalId, "failed");
+      return { success: false, error: error instanceof Error ? error.message : "Paystack transfer failed." };
+    }
+  } catch (error) { return { success: false, error: error instanceof Error ? error.message : "Withdrawal failed." };
+  }
+}
+
+export async function saveStorePayoutRecipientAction(input: { storeId: string; recipientCode: string; bankName: string; accountName: string; accountNumber: string }): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { store } = await getAuthorizedStore(input.storeId);
+    if (!input.recipientCode.trim() || !input.bankName.trim() || !input.accountName.trim() || !/^\d{10}$/.test(input.accountNumber.trim())) return { success: false, error: "Enter the Paystack recipient code and a valid 10-digit account number." };
+    await saveStorePayoutRecipient({ ...input, storeId: store.id });
+    revalidatePath("/store");
+    return { success: true };
+  } catch (error) { return { success: false, error: error instanceof Error ? error.message : "Could not save payout account." }; }
 }

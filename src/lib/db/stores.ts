@@ -30,6 +30,10 @@ interface StoreRow {
   owner_id?: string | null;
   cac_number?: string | null;
   store_type?: string | null;
+  paystack_recipient_code?: string | null;
+  payout_bank_name?: string | null;
+  payout_account_name?: string | null;
+  payout_account_number?: string | null;
 }
 
 function asStatus(value: string | null | undefined): StoreStatus {
@@ -61,12 +65,17 @@ function mapStore(row: StoreRow, dealCount = 0): Store {
     ownerId: row.owner_id || undefined,
     cacNumber: row.cac_number || undefined,
     storeType: row.store_type || "supermarket",
+    paystackRecipientCode: row.paystack_recipient_code || undefined,
+    payoutBankName: row.payout_bank_name || undefined,
+    payoutAccountName: row.payout_account_name || undefined,
+    payoutAccountNumber: row.payout_account_number || undefined,
   };
 }
 
 const STORE_COLUMNS = `id, name, slug, area, address, phone, rating, review_count,
         open_hours, pickup_instructions, image_url, banner_image_url,
-        lat, lng, is_active, status, owner_id, cac_number, store_type`;
+        lat, lng, is_active, status, owner_id, cac_number, store_type,
+        paystack_recipient_code, payout_bank_name, payout_account_name, payout_account_number`;
 
 export function slugifyStoreName(name: string): string {
   const slug = name
@@ -244,4 +253,29 @@ export async function insertStore(input: {
   );
 
   return store;
+}
+
+export async function getStoreBalances(storeId: string): Promise<{ confirmed: number; available: number }> {
+  const row = await queryOne<{ confirmed: number | string; available: number | string }>(`select
+    coalesce((select sum(amount) from public.ledger_entries where wallet_id = 'wallet_store_pending_' || $1 and kind in ('confirmed_hold', 'item_refund_reversal', 'confirmed_hold_reversal', 'item_refund')), 0) as confirmed,
+    coalesce((select sum(amount) from public.ledger_entries where wallet_id = 'wallet_store_available_' || $1), 0) as available`, [storeId]);
+  return { confirmed: Math.max(0, asInt(row?.confirmed)), available: Math.max(0, asInt(row?.available)) };
+}
+
+export async function createStoreWithdrawal(storeId: string, amount: number, recipientCode: string): Promise<string> {
+  const id = `wd_${storeId}_${Date.now()}`;
+  await execute(`select public.reserve_store_withdrawal($1, $2, $3, $4)`, [storeId, amount, id, recipientCode]);
+  return id;
+}
+
+export async function markStoreWithdrawal(id: string, status: 'success' | 'failed', transferCode?: string): Promise<void> {
+  if (status === "failed") {
+    await execute(`select public.reverse_store_withdrawal($1)`, [id]);
+  } else {
+    await execute(`update public.store_withdrawals set status = $2, transfer_code = $3, updated_at = now() where id = $1`, [id, status, transferCode ?? null]);
+  }
+}
+
+export async function saveStorePayoutRecipient(input: { storeId: string; recipientCode: string; bankName: string; accountName: string; accountNumber: string }): Promise<void> {
+  await execute(`update public.stores set paystack_recipient_code = $2, payout_bank_name = $3, payout_account_name = $4, payout_account_number = $5, updated_at = now() where id = $1`, [input.storeId, input.recipientCode.trim(), input.bankName.trim(), input.accountName.trim(), input.accountNumber.trim()]);
 }

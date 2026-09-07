@@ -33,7 +33,7 @@ async function openDb(): Promise<DbHandle> {
   if (url) {
     const postgres = (await import("postgres")).default;
     const sql = postgres(url, {
-      max: 4,
+      max: 1,
       ssl: url.includes("localhost") || url.includes("127.0.0.1") ? false : "require",
     });
     return { kind: "postgres", sql: sql as unknown as SqlFn };
