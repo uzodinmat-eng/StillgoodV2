@@ -13,6 +13,13 @@ export async function createOrderPayment(input: {
   );
 }
 
+export async function findOrderPayment(orderId: string): Promise<{ id: string; status: string; gatewayReference: string } | null> {
+  return queryOne<{ id: string; status: string; gatewayReference: string }>(
+    `select id, status, gateway_ref as "gatewayReference" from public.order_payments where order_id = $1 order by created_at desc limit 1`,
+    [orderId]
+  );
+}
+
 export async function markPaystackPaymentSuccessful(reference: string, amountNaira: number): Promise<boolean> {
   const payment = await queryOne<{ id: string; order_id: string; amount: number | string; status: string }>(
     `select id, order_id, amount, status from public.order_payments where gateway_ref = $1 for update`,

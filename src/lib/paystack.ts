@@ -34,6 +34,7 @@ export async function initializePaystackTransaction(input: {
   email: string;
   amountNaira: number;
   reference: string;
+  callbackUrl?: string;
   metadata: Record<string, string | number | boolean>;
 }): Promise<PaystackInitialization> {
   return paystackRequest<PaystackInitialization>("/transaction/initialize", {
@@ -43,9 +44,30 @@ export async function initializePaystackTransaction(input: {
       amount: Math.round(input.amountNaira * 100),
       currency: "NGN",
       reference: input.reference,
+      callback_url: input.callbackUrl,
       metadata: input.metadata,
     }),
   });
+}
+
+export interface PaystackVerification {
+  status: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  paid_at?: string;
+}
+
+export async function verifyPaystackTransaction(reference: string): Promise<PaystackVerification | null> {
+  try {
+    return await paystackRequest<PaystackVerification>(
+      `/transaction/verify/${encodeURIComponent(reference)}`,
+      { method: "GET" }
+    );
+  } catch {
+    // Unknown reference or Paystack unavailable: treat as unverified.
+    return null;
+  }
 }
 
 export function verifyPaystackWebhook(rawBody: string, signature: string | null): boolean {

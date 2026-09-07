@@ -18,7 +18,8 @@ import {
 import { debitWallet, getSession, updateCustomerProfile } from "./auth";
 import { normalizeNgPhone } from "./auth-utils";
 import { findOrderById, insertOrder } from "./db/orders";
-import { createOrderPayment } from "./db/payments";
+import { createOrderPayment, findOrderPayment, markPaystackPaymentSuccessful } from "./db/payments";
+import { verifyPaystackTransaction } from "./paystack";
 import { initializePaystackTransaction } from "./paystack";
 
 const CART_COOKIE_NAME = "stillgood_cart";
@@ -356,10 +357,12 @@ export async function createOrder(data: {
   const paymentId = `pay_${order.id}`;
   const paymentReference = `sg_${order.id.toLowerCase()}_${Date.now()}`;
   await createOrderPayment({ id: paymentId, orderId: order.id, amount: order.total, reference: paymentReference });
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://stillgood-swart.vercel.app";
   const payment = await initializePaystackTransaction({
     email: customerEmail,
     amountNaira: order.total,
     reference: paymentReference,
+    callbackUrl: `${origin}/order/${order.id}?paid=1`,
     metadata: { order_id: order.id, payment_id: paymentId },
   });
 
@@ -386,5 +389,21 @@ export async function createOrder(data: {
  */
 export async function getOrderById(orderId: string): Promise<Order | null> {
   const normalized = orderId.trim().toUpperCase();
-  return findOrderById(normalized);
+  const order = await findOrderById(normalized);
+
+  // Self-healing path: if the webhook is delayed or never fired, verify the
+  // payment directly with Paystack when the customer opens the order page.
+  if (order && order.status === "pending_payment") {
+    const payment = await findOrderPayment(order.id);
+    if (payment && payment.status === "pending") {
+      const verified = await verifyPaystackTransaction(payment.gatewayReference);
+      if (verified && verified.status === "success" && verified.currency === "NGN") {
+        const naira = Math.round(verified.amount / 100);
+        await markPaystackPaymentSuccessful(payment.gatewayReference, naira);
+        return findOrderById(normalized);
+      }
+    }
+  }
+
+  return order;
 }
