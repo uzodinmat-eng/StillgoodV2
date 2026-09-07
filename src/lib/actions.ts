@@ -293,6 +293,9 @@ export async function createOrder(data: {
   }
 
   const session = await getSession();
+  if (!session) {
+    return { success: false, error: "Create an account or log in before placing an order so refunds can reach your wallet." };
+  }
 
   if (data.paymentMethod !== "paystack") {
     return { success: false, error: "Paystack is the only supported payment method at launch." };
@@ -317,10 +320,10 @@ export async function createOrder(data: {
 
   const order: Order = {
     id: orderId,
-    customerId: session?.id,
-    customerName: data.customerName,
-    customerEmail,
-    customerPhone,
+    customerId: session.id,
+    customerName: data.customerName.trim() || session.name,
+    customerEmail: session.email || customerEmail,
+    customerPhone: data.customerPhone || session.phone,
     items: orderItems,
     storeId: selectedStore.id,
     storeName: selectedStore.name,

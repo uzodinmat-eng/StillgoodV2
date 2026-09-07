@@ -17,6 +17,7 @@ import { CartSummary, Customer } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
 import { createOrder } from "@/lib/actions";
 import { getSession } from "@/lib/auth";
+import { AuthModal } from "@/components/AuthModal";
 import { useStores } from "@/components/CatalogProvider";
 import {
   addCalendarDays,
@@ -55,6 +56,7 @@ export function CheckoutModal({
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [sessionCustomer, setSessionCustomer] = useState<Customer | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
   const [pickupDate, setPickupDate] = useState(() =>
     nextAvailablePickupDate(consolidating)
   );
@@ -127,6 +129,12 @@ export function CheckoutModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    if (!sessionCustomer) {
+      setErrorMsg("Create an account or log in before placing an order so refunds can reach your wallet.");
+      setAuthOpen(true);
+      return;
+    }
 
     if (!customerName || !customerPhone || !customerEmail) {
       setErrorMsg("Please provide your name, phone number, and email address.");
@@ -507,6 +515,21 @@ export function CheckoutModal({
           </div>
         </form>
       </div>
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => setAuthOpen(false)}
+        nextPath="/"
+        allowGuest={false}
+        title="Create an account before checkout"
+        subtitle="Your account is required so unavailable-item refunds can be credited to your Stillgood Wallet."
+        onLoggedIn={async (account) => {
+          setSessionCustomer(account.customer);
+          setCustomerName((current) => current || account.customer.name);
+          setCustomerEmail((current) => current || account.customer.email);
+          setCustomerPhone((current) => current || account.customer.phone);
+          setErrorMsg(null);
+        }}
+      />
     </div>
   );
 }
