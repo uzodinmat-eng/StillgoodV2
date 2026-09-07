@@ -344,14 +344,18 @@ export async function createOrder(data: {
     updatedAt: new Date().toISOString(),
   };
 
-  try {
-    await insertOrder(order);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/unique|duplicate|orders_pkey/i.test(message)) {
-      return { success: false, error: "That order number was just taken. Confirm again." };
+  let inserted = false;
+  for (let attempt = 0; attempt < 5 && !inserted; attempt += 1) {
+    try {
+      await insertOrder(order);
+      inserted = true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/unique|duplicate|orders_pkey/i.test(message) || attempt === 4) throw error;
+      // A customer should never be asked to resubmit because a random display ID collided.
+      order.id = generateOrderNumber();
+      order.paymentReference = `ref_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     }
-    throw error;
   }
 
   const paymentId = `pay_${order.id}`;

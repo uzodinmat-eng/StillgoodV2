@@ -30,14 +30,30 @@ export async function markPaystackPaymentSuccessful(reference: string, amountNai
   if (Number(payment.amount) !== amountNaira) throw new Error("Paystack amount does not match order payment");
 
   const txnId = `txn_paystack_${reference}`;
+  // Keep each statement separate: postgres prepared statements reject multiple commands.
   await execute(
-    `update public.order_payments set status = 'success', paid_at = now(), updated_at = now() where id = $1;
-     update public.orders set status = 'awaiting_store_confirmation', payment_reference = $2, updated_at = now() where id = $3 and status = 'pending_payment';
-     insert into public.ledger_entries (txn_id, wallet_id, amount, kind, ref_type, ref_id, note)
-       values ($4, 'wallet_gateway_paystack', -$5, 'payment_in', 'order_payment', $1, 'Verified Paystack charge'),
-              ($4, 'wallet_platform', $5, 'payment_in', 'order_payment', $1, 'Verified Paystack charge')
-       on conflict (txn_id, wallet_id, kind) do nothing`,
-    [payment.id, reference, payment.order_id, txnId, amountNaira]
+    `update public.order_payments
+     set status = 'success', paid_at = now(), updated_at = now()
+     where id = $1 and status = 'pending'`,
+    [payment.id]
+  );
+  await execute(
+    `update public.orders
+     set status = 'awaiting_store_confirmation', payment_reference = $2, updated_at = now()
+     where id = $1 and status = 'pending_payment'`,
+    [payment.order_id, reference]
+  );
+  await execute(
+    `insert into public.ledger_entries (txn_id, wallet_id, amount, kind, ref_type, ref_id, note)
+     values ($1, 'wallet_gateway_paystack', $2, 'payment_in', 'order_payment', $3, 'Verified Paystack charge')
+     on conflict (txn_id, wallet_id, kind) do nothing`,
+    [txnId, -amountNaira, payment.id]
+  );
+  await execute(
+    `insert into public.ledger_entries (txn_id, wallet_id, amount, kind, ref_type, ref_id, note)
+     values ($1, 'wallet_platform', $2, 'payment_in', 'order_payment', $3, 'Verified Paystack charge')
+     on conflict (txn_id, wallet_id, kind) do nothing`,
+    [txnId, amountNaira, payment.id]
   );
   return true;
 }
