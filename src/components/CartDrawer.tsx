@@ -303,8 +303,8 @@ export function CartDrawer({
                   <span>{formatNaira(cartSummary.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600 font-medium">
-                  <span>Platform Verification Fee</span>
-                  <span>{formatNaira(cartSummary.platformFee)}</span>
+                  <span>Pickup & handling fee</span>
+                  <span>{formatNaira(cartSummary.pickupFee)}</span>
                 </div>
                 {cartSummary.savingsTotal > 0 && (
                   <div className="flex justify-between text-emerald-700 font-bold">

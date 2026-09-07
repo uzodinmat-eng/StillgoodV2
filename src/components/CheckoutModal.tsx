@@ -159,6 +159,10 @@ export function CheckoutModal({
 
       if (result.success && result.order) {
         if (onOrderCreated) onOrderCreated(result.order.id);
+        if (result.checkoutUrl) {
+          window.location.assign(result.checkoutUrl);
+          return;
+        }
         router.push(`/order/${result.order.id}`);
         onClose();
       } else {
@@ -469,8 +473,8 @@ export function CheckoutModal({
               <span>{formatNaira(cartSummary.subtotal)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>Platform Verification Fee</span>
-              <span>{formatNaira(cartSummary.platformFee)}</span>
+              <span>{consolidating ? "Multi-store pickup & handling fee" : "Pickup & handling fee"}</span>
+              <span>{formatNaira(cartSummary.pickupFee)}</span>
             </div>
             <div className="flex justify-between text-emerald-700 font-bold">
               <span>Total Markdown Savings</span>

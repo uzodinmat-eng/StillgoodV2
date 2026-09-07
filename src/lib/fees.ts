@@ -4,6 +4,11 @@ import { PopulatedCartItem } from "./types";
  * Platform convenience fee calculation
  * ₦250 flat or 3% of subtotal (whichever is lower), with minimum of ₦150
  */
+export function calculatePickupFee(storeCount: number): number {
+  if (storeCount <= 0) return 0;
+  return 800 + 500 * (storeCount - 1);
+}
+
 export function calculatePlatformFee(subtotal: number): number {
   if (subtotal === 0) return 0;
   const percentageFee = Math.round(subtotal * 0.03);
@@ -18,8 +23,10 @@ export function calculateOrderSummary(items: PopulatedCartItem[]) {
   const subtotal = items.reduce((acc, item) => acc + item.itemTotal, 0);
   const originalSubtotal = items.reduce((acc, item) => acc + item.originalItemTotal, 0);
   const savingsTotal = Math.max(0, originalSubtotal - subtotal);
-  const platformFee = calculatePlatformFee(subtotal);
-  const total = subtotal + platformFee;
+  // The prototype platform fee is replaced by the documented picking surcharge.
+  const platformFee = 0;
+  const pickupFee = calculatePickupFee(new Set(items.map((item) => item.store.id)).size);
+  const total = subtotal + pickupFee;
 
   // Extract unique stores
   const storeMap = new Map();
@@ -37,6 +44,7 @@ export function calculateOrderSummary(items: PopulatedCartItem[]) {
     originalSubtotal,
     savingsTotal,
     platformFee,
+    pickupFee,
     total,
     storesInvolved,
   };

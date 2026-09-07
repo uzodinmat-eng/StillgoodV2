@@ -137,6 +137,7 @@ export interface CartSummary {
   originalSubtotal: number;
   savingsTotal: number;
   platformFee: number;
+  pickupFee: number;
   total: number;
   storesInvolved: Store[];
 }
@@ -199,6 +200,7 @@ export interface Order {
   
   subtotal: number;
   platformFee: number;
+  pickupFee: number;
   savingsTotal: number;
   total: number;
   
