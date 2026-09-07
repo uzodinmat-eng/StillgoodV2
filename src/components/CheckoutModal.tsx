@@ -386,7 +386,7 @@ export function CheckoutModal({
               </p>
             ) : (
               <p className="text-[11px] text-slate-500 font-medium">
-                Guest checkout. Use the same email when you log in later if you want this order on your account.
+                Not logged in. You will be asked to sign up or log in before placing the order so refunds can reach your Stillgood Wallet.
               </p>
             )}
 
