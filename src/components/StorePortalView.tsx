@@ -33,6 +33,8 @@ import {
   decideStoreOrderItemAction,
   createProductAction,
   updateProductAction,
+  withdrawStoreBalanceAction,
+  saveStorePayoutRecipientAction,
 } from "@/lib/store";
 import {
   Category,
@@ -51,6 +53,7 @@ interface StorePortalViewProps {
   categories: Category[];
   allStores?: Store[];
   error?: string;
+  balances?: { confirmed: number; available: number };
 }
 
 export function StorePortalView({
@@ -61,6 +64,7 @@ export function StorePortalView({
   categories,
   allStores = [],
   error,
+  balances = { confirmed: 0, available: 0 },
 }: StorePortalViewProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"inventory" | "orders" | "settings">("inventory");
@@ -99,6 +103,13 @@ export function StorePortalView({
   const [searchQuery, setSearchQuery] = useState("");
   const [pickupCodes, setPickupCodes] = useState<Record<string, string>>({});
   const [pickupMessages, setPickupMessages] = useState<Record<string, string>>({});
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawMessage, setWithdrawMessage] = useState("");
+  const [payoutRecipient, setPayoutRecipient] = useState(store?.paystackRecipientCode || "");
+  const [payoutBank, setPayoutBank] = useState(store?.payoutBankName || "");
+  const [payoutAccountName, setPayoutAccountName] = useState(store?.payoutAccountName || "");
+  const [payoutAccountNumber, setPayoutAccountNumber] = useState(store?.payoutAccountNumber || "");
+  const [payoutMessage, setPayoutMessage] = useState("");
 
   const resetForm = () => {
     setEditingProduct(null);
@@ -424,6 +435,27 @@ export function StorePortalView({
         {/* Approved Store Content */}
         {customer && store && store.status === "approved" && (
           <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-amber-800">Confirmed balance</p>
+                <p className="mt-1 text-xl font-black text-amber-950">{formatNaira(balances.confirmed)}</p>
+                <p className="mt-1 text-[11px] text-amber-800">Reversible until pickup PIN verification.</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Available balance</p>
+                <p className="mt-1 text-xl font-black text-emerald-950">{formatNaira(balances.available)}</p>
+                <p className="mt-1 text-[11px] text-emerald-800">Settled after verified pickup.</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Withdraw</p>
+                <div className="mt-2 flex gap-2">
+                  <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value.replace(/\D/g, ""))} placeholder="Amount" className="min-w-0 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs" />
+                  <button type="button" disabled={isPending || !withdrawAmount} onClick={() => startTransition(async () => { setWithdrawMessage(""); const result = await withdrawStoreBalanceAction({ storeId: store.id, amount: Number(withdrawAmount) }); setWithdrawMessage(result.success ? "Withdrawal sent to Paystack." : result.error || "Withdrawal failed."); if (result.success) { setWithdrawAmount(""); router.refresh(); } })} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-50">Withdraw</button>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500">Only settled funds can be withdrawn.</p>
+                {withdrawMessage && <p className="mt-1 text-[10px] font-bold text-slate-700">{withdrawMessage}</p>}
+              </div>
+            </div>
             {/* Multi-Store Switcher (for Admin accounts) */}
             {allStores.length > 1 && (
               <div className="p-4 bg-white rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -696,7 +728,7 @@ export function StorePortalView({
                                   <span className={`block text-[10px] font-bold ${item.fulfillmentStatus === "unavailable" ? "text-rose-700" : item.fulfillmentStatus === "available" ? "text-emerald-700" : "text-amber-700"}`}>
                                     {item.fulfillmentStatus || "pending review"}
                                   </span>
-                                  {item.fulfillmentStatus === "pending" || !item.fulfillmentStatus ? (
+                                  {item.fulfillmentStatus !== "picked_up" ? (
                                     <div className="flex gap-1 justify-end">
                                       {[true, false].map((available) => (
                                         <button
@@ -720,7 +752,7 @@ export function StorePortalView({
                                           })}
                                           className={`rounded-lg px-2 py-1 text-[10px] font-black text-white ${available ? "bg-emerald-600" : "bg-rose-600"} disabled:opacity-50`}
                                         >
-                                          {available ? "Available" : "Unavailable"}
+                                          {available ? (item.fulfillmentStatus === "available" ? "Keep available" : "Available") : (item.fulfillmentStatus === "unavailable" ? "Keep unavailable" : "Unavailable")}
                                         </button>
                                       ))}
                                     </div>
@@ -844,6 +876,21 @@ export function StorePortalView({
                       {isPending ? "Updating Password…" : "Update Password"}
                     </button>
                   </form>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">Paystack payout account</h3>
+                    <p className="text-[11px] text-slate-500 mt-1">Only settled available balance can be transferred to this attached Paystack recipient.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input value={payoutRecipient} onChange={(e) => setPayoutRecipient(e.target.value)} placeholder="Paystack recipient code" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" />
+                    <input value={payoutBank} onChange={(e) => setPayoutBank(e.target.value)} placeholder="Bank name" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" />
+                    <input value={payoutAccountName} onChange={(e) => setPayoutAccountName(e.target.value)} placeholder="Account name" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" />
+                    <input inputMode="numeric" value={payoutAccountNumber} onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit account number" className="rounded-xl border border-slate-200 px-3 py-2 text-xs" />
+                  </div>
+                  <button type="button" disabled={isPending} onClick={() => startTransition(async () => { const result = await saveStorePayoutRecipientAction({ storeId: store.id, recipientCode: payoutRecipient, bankName: payoutBank, accountName: payoutAccountName, accountNumber: payoutAccountNumber }); setPayoutMessage(result.success ? "Paystack payout account saved." : result.error || "Could not save payout account."); if (result.success) router.refresh(); })} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white disabled:opacity-50">Save payout account</button>
+                  {payoutMessage && <p className="text-[11px] font-bold text-slate-700">{payoutMessage}</p>}
                 </div>
 
                 {/* Supermarket Profile Summary */}

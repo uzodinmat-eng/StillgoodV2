@@ -93,6 +93,7 @@ export function AccountView({
         cartItemCount={cartSummary.itemCount}
         cartSubtotal={cartSummary.subtotal}
         onOpenCart={() => setCartDrawerOpen(true)}
+        walletBalance={customer?.walletBalance || 0}
       />
 
       <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex-1 space-y-6">

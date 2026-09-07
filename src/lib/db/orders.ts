@@ -239,34 +239,7 @@ export async function insertOrder(order: Order): Promise<Order> {
 }
 
 export async function decideStoreOrderItem(input: { orderId: string; storeId: string; productId: string; available: boolean }): Promise<Order | null> {
-  const status = input.available ? "available" : "unavailable";
-  await execute(
-    `update public.order_items set fulfillment_status = $4 where order_id = $1 and store_id = $2 and product_id = $3 and fulfillment_status = 'pending';
-     update public.order_items oi set refunded_at = now()
-       where oi.order_id = $1 and oi.store_id = $2 and oi.product_id = $3 and $4 = 'unavailable' and oi.refunded_at is null;
-     insert into public.wallets (id, owner_type, owner_id)
-       select 'wallet_customer_' || o.customer_id, 'customer', o.customer_id
-       from public.orders o where o.id = $1 and o.customer_id is not null
-       on conflict (id) do nothing;
-     insert into public.wallets (id, owner_type, owner_id)
-       select 'wallet_store_' || $2, 'store', $2
-       where not exists (select 1 from public.wallets where id = 'wallet_store_' || $2);
-     insert into public.ledger_entries (txn_id, wallet_id, amount, kind, ref_type, ref_id, note)
-       select 'txn_item_' || $1 || '_' || $3, 'wallet_customer_' || o.customer_id, oi.price * oi.quantity, 'item_refund', 'order_item', $1 || '-' || $3, 'Unavailable item refund'
-       from public.orders o join public.order_items oi on oi.order_id = o.id
-       where o.id = $1 and o.customer_id is not null and oi.store_id = $2 and oi.product_id = $3 and $4 = 'unavailable' and oi.refunded_at is not null
-       on conflict (txn_id, wallet_id, kind) do nothing;
-     insert into public.ledger_entries (txn_id, wallet_id, amount, kind, ref_type, ref_id, note)
-       select 'txn_item_' || $1 || '_' || $3, 'wallet_platform', -(oi.price * oi.quantity), 'item_refund', 'order_item', $1 || '-' || $3, 'Unavailable item refund'
-       from public.order_items oi where oi.order_id = $1 and oi.store_id = $2 and oi.product_id = $3 and $4 = 'unavailable' and oi.refunded_at is not null
-       on conflict (txn_id, wallet_id, kind) do nothing;
-     update public.store_fulfillments sf set status = 'ready_for_pickup', confirmed_at = now(), updated_at = now()
-       where sf.order_id = $1 and sf.store_id = $2
-       and not exists (select 1 from public.order_items x where x.order_id = $1 and x.store_id = $2 and x.fulfillment_status = 'pending');
-     update public.orders set status = case when not exists (select 1 from public.order_items x where x.order_id = $1 and x.fulfillment_status = 'pending') then 'confirmed' else 'awaiting_store_confirmation' end, updated_at = now()
-       where id = $1 and status in ('paid', 'awaiting_store_confirmation')`,
-    [input.orderId, input.storeId, input.productId, status]
-  );
+  await execute(`select public.decide_store_order_item($1, $2, $3, $4)`, [input.orderId, input.storeId, input.productId, input.available]);
   return findOrderById(input.orderId);
 }
 

@@ -20,6 +20,7 @@ export default async function StorePortalPage({
       categories={data.categories}
       allStores={data.allStores}
       error={data.error}
+      balances={data.balances}
     />
   );
 }

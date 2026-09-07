@@ -25,6 +25,7 @@ interface NavbarProps {
   onOpenCart: () => void;
   selectedStoreId?: string;
   onSelectStore?: (storeId: string) => void;
+  walletBalance?: number;
 }
 
 export function Navbar({
@@ -33,6 +34,7 @@ export function Navbar({
   onOpenCart,
   selectedStoreId = "all",
   onSelectStore,
+  walletBalance = 0,
 }: NavbarProps) {
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isCityMenuOpen, setIsCityMenuOpen] = useState(false);
@@ -233,6 +235,16 @@ export function Navbar({
               >
                 <StoreIcon className="w-4 h-4 text-slate-500" />
                 <span>Stores</span>
+              </Link>
+
+              <Link
+                href="/account"
+                className="inline-flex items-center gap-1.5 px-2.5 min-h-10 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs font-black transition-all shadow-2xs"
+                aria-label="Stillgood Wallet"
+                title="Stillgood Wallet"
+              >
+                <span className="text-[10px] uppercase tracking-wide">Wallet</span>
+                <span>{formatNaira(walletBalance)}</span>
               </Link>
 
               <Link

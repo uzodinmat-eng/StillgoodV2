@@ -55,6 +55,12 @@ export interface Store {
   ownerId?: string;
   cacNumber?: string;
   storeType?: string;
+  paystackRecipientCode?: string;
+  payoutBankName?: string;
+  payoutAccountName?: string;
+  payoutAccountNumber?: string;
+  confirmedBalance?: number;
+  availableBalance?: number;
 }
 
 export interface Category {
