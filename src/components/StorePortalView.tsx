@@ -30,6 +30,7 @@ import { formatNaira } from "@/lib/pricing";
 import {
   changeStorePasswordAction,
   completeStorePickupAction,
+  decideStoreOrderItemAction,
   createProductAction,
   updateProductAction,
 } from "@/lib/store";
@@ -231,7 +232,10 @@ export function StorePortalView({
       status === "pending" ||
       status === "ready_for_pickup" ||
       status === "confirmed" ||
-      status === "pending_payment"
+      status === "pending_payment" ||
+      status === "paid" ||
+      status === "awaiting_store_confirmation" ||
+      status === "partially_fulfilled"
     );
   });
   const previousOrders = orders.filter((o) => {
@@ -682,13 +686,45 @@ export function StorePortalView({
                                     {item.brand} • {item.unit} • Expiry: {item.expiryDate}
                                   </p>
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right space-y-1.5">
                                   <span className="font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-md">
                                     Qty: {item.quantity}
                                   </span>
-                                  <span className="block text-[11px] text-slate-500 font-semibold mt-1">
+                                  <span className="block text-[11px] text-slate-500 font-semibold">
                                     {formatNaira(item.price * item.quantity)}
                                   </span>
+                                  <span className={`block text-[10px] font-bold ${item.fulfillmentStatus === "unavailable" ? "text-rose-700" : item.fulfillmentStatus === "available" ? "text-emerald-700" : "text-amber-700"}`}>
+                                    {item.fulfillmentStatus || "pending review"}
+                                  </span>
+                                  {item.fulfillmentStatus === "pending" || !item.fulfillmentStatus ? (
+                                    <div className="flex gap-1 justify-end">
+                                      {[true, false].map((available) => (
+                                        <button
+                                          key={String(available)}
+                                          type="button"
+                                          disabled={isPending}
+                                          onClick={() => startTransition(async () => {
+                                            const result = await decideStoreOrderItemAction({
+                                              orderId: order.id,
+                                              storeId: store.id,
+                                              productId: item.productId,
+                                              available,
+                                            });
+                                            setPickupMessages((current) => ({
+                                              ...current,
+                                              [order.id]: result.success
+                                                ? available ? "Item confirmed available." : "Item marked unavailable; customer refund recorded."
+                                                : result.error || "Could not update item.",
+                                            }));
+                                            if (result.success) router.refresh();
+                                          })}
+                                          className={`rounded-lg px-2 py-1 text-[10px] font-black text-white ${available ? "bg-emerald-600" : "bg-rose-600"} disabled:opacity-50`}
+                                        >
+                                          {available ? "Available" : "Unavailable"}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </div>
                               </div>
                             ))}
