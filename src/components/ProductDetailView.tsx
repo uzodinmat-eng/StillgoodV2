@@ -42,6 +42,7 @@ const emptyCart: CartSummary = {
   originalSubtotal: 0,
   savingsTotal: 0,
   platformFee: 0,
+  pickupFee: 0,
   total: 0,
   storesInvolved: [],
 };

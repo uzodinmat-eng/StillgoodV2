@@ -13,6 +13,7 @@ interface OrderRow {
   store_area: string;
   subtotal: number | string;
   platform_fee: number | string;
+  pickup_fee: number | string;
   savings_total: number | string;
   total: number | string;
   status: Order["status"];
@@ -94,6 +95,7 @@ function mapOrder(row: OrderRow, items: OrderItemRecord[]): Order {
     storeArea: row.store_area,
     subtotal: asInt(row.subtotal),
     platformFee: asInt(row.platform_fee),
+    pickupFee: asInt(row.pickup_fee),
     savingsTotal: asInt(row.savings_total),
     total: asInt(row.total),
     status: row.status,
@@ -143,7 +145,7 @@ export async function insertOrder(order: Order): Promise<Order> {
     `insert into public.orders (
         id, customer_id, customer_name, customer_email, customer_phone,
         store_id, store_name, store_address, store_area,
-        subtotal, platform_fee, savings_total, total,
+        subtotal, platform_fee, pickup_fee, savings_total, total,
         status, payment_method, payment_reference,
         pickup_date, pickup_time_slot, pickup_verification_code,
         requires_consolidation, origin_stores, hub_batch, picked_up_at,
@@ -151,11 +153,11 @@ export async function insertOrder(order: Order): Promise<Order> {
       ) values (
         $1, $2, $3, $4, $5,
         $6, $7, $8, $9,
-        $10, $11, $12, $13,
-        $14, $15, $16,
-        $17, $18, $19,
-        $20, $21::jsonb, $22, $23,
-        $24, $25
+        $10, $11, $12, $13, $14,
+        $15, $16, $17,
+        $18, $19, $20,
+        $21, $22::jsonb, $23, $24,
+        $25, $26
       )`,
     [
       order.id,
@@ -169,6 +171,7 @@ export async function insertOrder(order: Order): Promise<Order> {
       order.storeArea,
       order.subtotal,
       order.platformFee,
+      order.pickupFee,
       order.savingsTotal,
       order.total,
       order.status,

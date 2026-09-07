@@ -18,6 +18,8 @@ import {
 import { debitWallet, getSession, updateCustomerProfile } from "./auth";
 import { normalizeNgPhone } from "./auth-utils";
 import { findOrderById, insertOrder } from "./db/orders";
+import { createOrderPayment } from "./db/payments";
+import { initializePaystackTransaction } from "./paystack";
 
 const CART_COOKIE_NAME = "stillgood_cart";
 
@@ -228,7 +230,7 @@ export async function createOrder(data: {
   pickupDate: string;
   pickupTimeSlot: string;
   paymentMethod: "paystack" | "flutterwave" | "bank_transfer" | "wallet";
-}): Promise<{ success: boolean; order?: Order; error?: string }> {
+  }): Promise<{ success: boolean; order?: Order; checkoutUrl?: string; error?: string }> {
   const cart = await getCart();
 
   if (cart.items.length === 0) {
@@ -284,17 +286,8 @@ export async function createOrder(data: {
 
   const session = await getSession();
 
-  if (data.paymentMethod === "wallet") {
-    if (!session) {
-      return {
-        success: false,
-        error: "Log in to pay with Stillgood Wallet, or choose Paystack / transfer.",
-      };
-    }
-    const walletResult = await debitWallet(session.id, cart.total);
-    if (!walletResult.success) {
-      return { success: false, error: walletResult.error };
-    }
+  if (data.paymentMethod !== "paystack") {
+    return { success: false, error: "Paystack is the only supported payment method at launch." };
   }
 
   const orderId = generateOrderNumber();
@@ -327,9 +320,10 @@ export async function createOrder(data: {
     storeArea: selectedStore.area,
     subtotal: cart.subtotal,
     platformFee: cart.platformFee,
+    pickupFee: cart.pickupFee,
     savingsTotal: cart.savingsTotal,
     total: cart.total,
-    status: "confirmed",
+    status: "pending_payment",
     paymentMethod: data.paymentMethod,
     paymentReference: `ref_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     pickupDate: data.pickupDate,
@@ -352,6 +346,16 @@ export async function createOrder(data: {
     throw error;
   }
 
+  const paymentId = `pay_${order.id}`;
+  const paymentReference = `sg_${order.id.toLowerCase()}_${Date.now()}`;
+  await createOrderPayment({ id: paymentId, orderId: order.id, amount: order.total, reference: paymentReference });
+  const payment = await initializePaystackTransaction({
+    email: customerEmail,
+    amountNaira: order.total,
+    reference: paymentReference,
+    metadata: { order_id: order.id, payment_id: paymentId },
+  });
+
   if (session) {
     await updateCustomerProfile(session.id, {
       name: data.customerName.trim() || session.name,
@@ -360,14 +364,14 @@ export async function createOrder(data: {
     });
   }
 
-  // Empty cart
-  await saveRawCartItems([]);
+  // Keep the cart until Paystack confirms payment.
+  const checkoutUrl = payment.authorization_url;
 
   revalidatePath("/");
   revalidatePath("/account");
   revalidatePath(`/order/${order.id}`);
 
-  return { success: true, order };
+  return { success: true, order, checkoutUrl };
 }
 
 /**
