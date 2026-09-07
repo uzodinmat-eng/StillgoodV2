@@ -8,9 +8,9 @@ import {
 } from "./catalog";
 import { loadCatalog } from "./db/catalog";
 import { calculateOrderSummary } from "./fees";
-import { CartItem, CartSummary, Order, OrderItemRecord, PopulatedCartItem } from "./types";
+import { CartItem, CartSummary, Order, OrderItemRecord, PopulatedCartItem, Store } from "./types";
 import {
-  getHubBatchForSlot,
+  autoAssignHubBatch,
   isValidPickupSlot,
   needsConsolidation,
   toOriginStoreRefs,
@@ -239,36 +239,43 @@ export async function createOrder(data: {
 
   const consolidating = needsConsolidation(cart.storesInvolved);
   const originStores = toOriginStoreRefs(cart.storesInvolved);
+  const originStore = cart.storesInvolved[0];
 
-  if (!consolidating) {
-    const origin = cart.storesInvolved[0];
-    if (!origin || data.storeId !== origin.id) {
+  // Hub assignment is server-side for consolidation orders: the client cannot
+  // choose the batch, and orders.store_id anchors to a real partner store.
+  let selectedStore: Store | undefined;
+  let pickupDate = data.pickupDate;
+  let pickupTimeSlot = data.pickupTimeSlot;
+  let hubBatch: "noon" | "evening" | null = null;
+
+  if (consolidating) {
+    const assignment = autoAssignHubBatch();
+    pickupDate = assignment.pickupDate;
+    pickupTimeSlot = assignment.pickupTimeSlot;
+    hubBatch = assignment.batch;
+    selectedStore = originStore;
+  } else {
+    if (!originStore || data.storeId !== originStore.id) {
       return {
         success: false,
         error: "Pickup must be at the supermarket that holds your items.",
       };
     }
+    const catalog = await loadCatalog();
+    selectedStore = findStoreInCatalog(catalog, data.storeId);
+    if (!selectedStore) {
+      return { success: false, error: "Please select a valid store for pickup." };
+    }
+    if (!isValidPickupSlot({ consolidating, pickupDate, pickupTimeSlot })) {
+      return {
+        success: false,
+        error: "Please choose a valid pickup time window.",
+      };
+    }
   }
 
-  const catalog = await loadCatalog();
-  const selectedStore = findStoreInCatalog(catalog, data.storeId);
   if (!selectedStore) {
     return { success: false, error: "Please select a valid store for pickup." };
-  }
-
-  if (
-    !isValidPickupSlot({
-      consolidating,
-      pickupDate: data.pickupDate,
-      pickupTimeSlot: data.pickupTimeSlot,
-    })
-  ) {
-    return {
-      success: false,
-      error: consolidating
-        ? "That consolidation batch is no longer available. Choose the noon or evening window."
-        : "Please choose a valid pickup time window.",
-    };
   }
 
   const customerPhone = normalizeNgPhone(data.customerPhone);
@@ -326,12 +333,12 @@ export async function createOrder(data: {
     status: "pending_payment",
     paymentMethod: data.paymentMethod,
     paymentReference: `ref_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    pickupDate: data.pickupDate,
-    pickupTimeSlot: data.pickupTimeSlot,
+    pickupDate,
+    pickupTimeSlot,
     pickupVerificationCode: pickupPin,
     requiresConsolidation: consolidating,
     originStores,
-    hubBatch: getHubBatchForSlot(data.pickupTimeSlot, consolidating),
+    hubBatch,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

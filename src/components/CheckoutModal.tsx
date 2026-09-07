@@ -83,7 +83,7 @@ export function CheckoutModal({
       // Hub and batch are assigned automatically: ordered at least 30
       // minutes before a batch's WAT cutoff lands in that batch.
       const assignment = autoAssignHubBatch();
-      setStoreId(assignment.batch === "noon" ? "hub_noon" : "hub_evening");
+      setStoreId(originStore?.id || "");
       setPickupDate(assignment.pickupDate);
       setPickupTimeSlot(assignment.pickupTimeSlot);
       return;
