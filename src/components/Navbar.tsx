@@ -75,10 +75,10 @@ export function Navbar({
               Partner Stores
             </Link>
             <Link
-              href="/store/register"
+              href="/store"
               className="bg-emerald-800 hover:bg-emerald-700 text-white font-bold px-2 py-0.5 rounded text-[11px] border border-emerald-600 transition-colors hidden sm:inline"
             >
-              Store Sign Up
+              Store Login
             </Link>
           </div>
         </div>
@@ -343,6 +343,14 @@ export function Navbar({
               >
                 <StoreIcon className="w-4 h-4 text-emerald-600" />
                 <span>Stores</span>
+              </Link>
+              <Link
+                href="/store"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-700"
+              >
+                <StoreIcon className="w-4 h-4 text-emerald-600" />
+                <span>Store Login</span>
               </Link>
               <Link
                 href="/store/register"
