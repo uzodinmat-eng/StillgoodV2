@@ -32,7 +32,7 @@ export async function markPaystackPaymentSuccessful(reference: string, amountNai
   const txnId = `txn_paystack_${reference}`;
   await execute(
     `update public.order_payments set status = 'success', paid_at = now(), updated_at = now() where id = $1;
-     update public.orders set status = 'confirmed', payment_reference = $2, updated_at = now() where id = $3 and status = 'pending_payment';
+     update public.orders set status = 'awaiting_store_confirmation', payment_reference = $2, updated_at = now() where id = $3 and status = 'pending_payment';
      insert into public.ledger_entries (txn_id, wallet_id, amount, kind, ref_type, ref_id, note)
        values ($4, 'wallet_gateway_paystack', -$5, 'payment_in', 'order_payment', $1, 'Verified Paystack charge'),
               ($4, 'wallet_platform', $5, 'payment_in', 'order_payment', $1, 'Verified Paystack charge')
@@ -40,4 +40,9 @@ export async function markPaystackPaymentSuccessful(reference: string, amountNai
     [payment.id, reference, payment.order_id, txnId, amountNaira]
   );
   return true;
+}
+
+export async function recordUnavailableItemRefund(input: { orderId: string; productId: string; amount: number; customerId?: string }): Promise<void> {
+  const walletId = input.customerId ? `wallet_customer_${input.customerId}` : "wallet_platform";
+  await execute(`insert into public.ledger_entries (txn_id, wallet_id, amount, kind, ref_type, ref_id, note) values ($1, $2, $3, 'item_refund', 'order_item', $4, 'Unavailable item refund') on conflict (txn_id, wallet_id, kind) do nothing`, [`txn_refund_${input.orderId}_${input.productId}`, walletId, input.amount, `${input.orderId}-${input.productId}`]);
 }

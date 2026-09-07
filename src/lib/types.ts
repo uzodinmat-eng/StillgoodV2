@@ -144,7 +144,10 @@ export interface CartSummary {
 
 export type OrderStatus = 
   | "pending_payment"
+  | "paid"
+  | "awaiting_store_confirmation"
   | "confirmed"
+  | "partially_fulfilled"
   | "ready_for_pickup"
   | "picked_up"
   | "cancelled";
@@ -161,6 +164,8 @@ export interface OrderItemRecord {
   storeId: string;
   storeName: string;
   expiryDate: string;
+  fulfillmentStatus?: "pending" | "available" | "unavailable" | "picked_up";
+  refundedAt?: string;
 }
 
 export type CustomerRole = "customer" | "admin" | "store_owner";

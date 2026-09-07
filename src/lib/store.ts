@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "./auth";
 import { customerIsAdmin } from "./auth-utils";
 import { loadCatalog } from "./db/catalog";
-import { completeStorePickup, findOrdersForStore } from "./db/orders";
+import { completeStorePickup, decideStoreOrderItem, findOrdersForStore } from "./db/orders";
 import { findProductById, findProductsForStore, insertProduct, updateProduct } from "./db/products";
 import { findStoreById, findStoreByOwnerId, listStores } from "./db/stores";
 import { createServerSupabase } from "./supabase/server";
@@ -207,6 +207,19 @@ export async function updateProductAction(
       success: false,
       error: error instanceof Error ? error.message : "Failed to update product.",
     };
+  }
+}
+
+
+export async function decideStoreOrderItemAction(input: { orderId: string; storeId: string; productId: string; available: boolean }): Promise<{ success: boolean; order?: Order; error?: string }> {
+  try {
+    const { store } = await getAuthorizedStore(input.storeId);
+    const order = await decideStoreOrderItem({ ...input, storeId: store.id });
+    if (!order) return { success: false, error: "Order item could not be updated." };
+    revalidatePath("/store"); revalidatePath(`/order/${order.id}`);
+    return { success: true, order };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Could not update item." };
   }
 }
 
