@@ -102,8 +102,15 @@ function migrationFiles(): string[] {
 }
 
 async function migrate(handle: DbHandle): Promise<void> {
-  for (const relativePath of migrationFiles()) {
-    await applySql(handle, readSqlFile(relativePath));
+  // Serialize migrations across serverless instances so concurrent cold starts
+  // cannot race each other against the shared Supabase connection pool.
+  await rawQuery(handle, `select pg_advisory_lock(918273645)`);
+  try {
+    for (const relativePath of migrationFiles()) {
+      await applySql(handle, readSqlFile(relativePath));
+    }
+  } finally {
+    await rawQuery(handle, `select pg_advisory_unlock(918273645)`);
   }
 
   const table = (
