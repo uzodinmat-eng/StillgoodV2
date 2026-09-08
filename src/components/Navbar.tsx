@@ -352,14 +352,6 @@ export function Navbar({
                 <StoreIcon className="w-4 h-4 text-emerald-600" />
                 <span>Store Login</span>
               </Link>
-              <Link
-                href="/store/register"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-700"
-              >
-                <StoreIcon className="w-4 h-4 text-emerald-600" />
-                <span>Store Sign Up</span>
-              </Link>
             </div>
           </div>
         )}
