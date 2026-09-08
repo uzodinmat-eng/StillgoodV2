@@ -139,7 +139,7 @@ export async function registerStoreAction(
       area: input.area,
       address,
       phone,
-      openHours: input.openHours?.trim() || "8:00 AM – 9:00 PM (Daily)",
+      openHours: input.openHours?.trim() || "8:00 AM â€“ 9:00 PM (Daily)",
       pickupInstructions:
         input.pickupInstructions?.trim() ||
         "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the customer care desk.",
