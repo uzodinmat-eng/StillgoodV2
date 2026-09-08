@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "./auth";
 import { normalizeNgPhone } from "./auth-utils";
 import { createServerSupabase } from "./supabase/server";
-import { findCustomerByAuthUserId, findCustomerByEmail, insertCustomer, saveCustomer } from "./db/customers";
+import { findCustomerByAuthUserId, findCustomerByEmail, findCustomerByPhone, insertCustomer, saveCustomer } from "./db/customers";
 import { findStoreById, findStoreByOwnerId, insertStore, STORE_AREAS } from "./db/stores";
 import { Customer, Store } from "./types";
 
@@ -22,6 +22,22 @@ export type StoreRegistrationInput = {
   pickupInstructions?: string;
 };
 
+function friendlyRegistrationError(error: unknown): string {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code)
+    : "";
+  const constraint = typeof error === "object" && error !== null && "constraint_name" in error
+    ? String((error as { constraint_name?: unknown }).constraint_name)
+    : "";
+
+  if (code === "23505" && constraint === "customers_phone_key") {
+    return "This phone number is already linked to an account. Use another number or log in with the existing account.";
+  }
+  if (code === "23505") {
+    return "An account or store with these details already exists. Check your email and phone number, then try again.";
+  }
+  return error instanceof Error ? error.message : "Could not complete store registration.";
+}
 export async function registerStoreAction(
   input: StoreRegistrationInput
 ): Promise<{
@@ -48,6 +64,14 @@ export async function registerStoreAction(
     return { success: false, error: "Please select a valid Abuja area." };
   }
 
+  const existingPhoneCustomer = await findCustomerByPhone(phone);
+  if (existingPhoneCustomer) {
+    return {
+      success: false,
+      error: "This phone number is already linked to an account. Use another number or log in with the existing account.",
+    };
+  }
+
   const supabase = await createServerSupabase();
 
   // 1. Sign up auth user
@@ -63,7 +87,7 @@ export async function registerStoreAction(
   });
 
   if (authError) {
-    return { success: false, error: authError.message };
+    return { success: false, error: friendlyRegistrationError(authError) };
   }
 
   const user = authData.user;
@@ -87,7 +111,11 @@ export async function registerStoreAction(
       authUserId: user.id,
       role: "store_owner",
     };
-    await insertCustomer(customer);
+    try {
+      await insertCustomer(customer);
+    } catch (error) {
+      return { success: false, error: friendlyRegistrationError(error) };
+    }
   } else {
     customer = {
       ...customer,
@@ -96,28 +124,41 @@ export async function registerStoreAction(
       authUserId: user.id,
       role: "store_owner",
     };
-    await saveCustomer(customer);
+    try {
+      await saveCustomer(customer);
+    } catch (error) {
+      return { success: false, error: friendlyRegistrationError(error) };
+    }
   }
 
   // 3. Create store with pending status linked to owner
-  const store = await insertStore({
-    name: businessName,
-    area: input.area,
-    address,
-    phone,
-    openHours: input.openHours?.trim() || "8:00 AM â€“ 9:00 PM (Daily)",
-    pickupInstructions:
-      input.pickupInstructions?.trim() ||
-      "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the customer care desk.",
-    status: "pending",
-    ownerId: customer.id,
-    cacNumber: input.cacNumber?.trim() || undefined,
-    storeType: input.storeType?.trim() || "supermarket",
-  });
+  let store: Store;
+  try {
+    store = await insertStore({
+      name: businessName,
+      area: input.area,
+      address,
+      phone,
+      openHours: input.openHours?.trim() || "8:00 AM – 9:00 PM (Daily)",
+      pickupInstructions:
+        input.pickupInstructions?.trim() ||
+        "Pick up in person or send a dispatch rider. Present your order number SG-XXXXX and 4-digit PIN at the customer care desk.",
+      status: "pending",
+      ownerId: customer.id,
+      cacNumber: input.cacNumber?.trim() || undefined,
+      storeType: input.storeType?.trim() || "supermarket",
+    });
+  } catch (error) {
+    return { success: false, error: friendlyRegistrationError(error) };
+  }
 
   // Link store_id on customer
   customer.storeId = store.id;
-  await saveCustomer(customer);
+  try {
+    await saveCustomer(customer);
+  } catch (error) {
+    return { success: false, error: friendlyRegistrationError(error) };
+  }
 
   revalidatePath("/admin");
   revalidatePath("/stores");
