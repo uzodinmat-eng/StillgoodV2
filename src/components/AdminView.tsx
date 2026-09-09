@@ -11,7 +11,7 @@ import {
   Plus,
   ShieldCheck,
 } from "lucide-react";
-import { AuthModal } from "@/components/AuthModal";
+import { AdminSignInForm } from "@/components/AdminSignInForm";
 import { createStoreAction, setStoreStatusAction } from "@/lib/admin";
 import { logout } from "@/lib/auth";
 import { formatNaira } from "@/lib/pricing";
@@ -35,7 +35,6 @@ export function AdminView({
   areas = STORE_AREAS,
 }: AdminViewProps) {
   const router = useRouter();
-  const [authOpen, setAuthOpen] = useState(!customer);
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
@@ -119,22 +118,8 @@ export function AdminView({
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {!customer && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-            Log in with an email on <code className="font-mono text-xs">ADMIN_EMAILS</code>.
-            Guest checkout is for the shop, not this desk.
-          </section>
-        )}
-
-        {customer && !isAdmin && (
-          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-            <p className="font-bold">Signed in as {customer.email}</p>
-            <p className="mt-1">
-              This account cannot open the admin desk. Add the email to{" "}
-              <code className="font-mono text-xs">ADMIN_EMAILS</code> in{" "}
-              <code className="font-mono text-xs">.env.local</code> and sign in again.
-            </p>
-          </section>
+        {!isAdmin && (
+          <AdminSignInForm signedInEmail={customer?.email} />
         )}
 
         {isAdmin && (
@@ -396,19 +381,6 @@ export function AdminView({
           </>
         )}
       </main>
-
-      <AuthModal
-        isOpen={authOpen}
-        onClose={() => setAuthOpen(false)}
-        nextPath="/admin"
-        allowGuest={false}
-        title="Admin sign in"
-        subtitle="Email or Google. This is not guest checkout. Only allow-listed emails can register stores or see every SG-XXXXX."
-        onLoggedIn={async () => {
-          setAuthOpen(false);
-          router.refresh();
-        }}
-      />
     </div>
   );
 }
