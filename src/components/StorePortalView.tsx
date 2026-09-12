@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useCallback, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,6 +12,7 @@ import {
   Clock,
   KeyRound,
   LogOut,
+  MessageSquare,
   Package,
   PackagePlus,
   Plus,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
 import { ProductImageCapture } from "@/components/ProductImageCapture";
+import { StoreMessageThread, ThreadMessage } from "@/components/StoreMessageThread";
 import { logout } from "@/lib/auth";
 import { formatNaira } from "@/lib/pricing";
 import {
@@ -35,6 +37,8 @@ import {
   updateProductAction,
   withdrawStoreBalanceAction,
   saveStorePayoutRecipientAction,
+  getStoreMessagesAction,
+  sendStoreMessageAction,
 } from "@/lib/store";
 import {
   Category,
@@ -67,7 +71,7 @@ export function StorePortalView({
   balances = { confirmed: 0, available: 0 },
 }: StorePortalViewProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"inventory" | "orders" | "settings">("inventory");
+  const [activeTab, setActiveTab] = useState<"inventory" | "orders" | "messages" | "settings">("inventory");
   const [orderSubTab, setOrderSubTab] = useState<"active" | "history">("active");
   const [authOpen, setAuthOpen] = useState(!customer);
   const [isPending, startTransition] = useTransition();
@@ -260,6 +264,29 @@ export function StorePortalView({
       p.brand.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const storeId = store?.id || "";
+  const fetchStoreMessages = useCallback(async (): Promise<ThreadMessage[]> => {
+    if (!storeId) return [];
+    const result = await getStoreMessagesAction(storeId);
+    if (!result.success) {
+      throw new Error(result.error || "Could not load messages.");
+    }
+    return (result.messages || []).map((m) => ({
+      id: m.id,
+      senderRole: m.senderRole,
+      body: m.body,
+      createdAt: m.createdAt,
+    }));
+  }, [storeId]);
+
+  const sendStoreMessage = useCallback(
+    async (body: string) => {
+      if (!storeId) return { success: false, error: "No store selected." };
+      return sendStoreMessageAction(storeId, body);
+    },
+    [storeId]
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
       {/* Top Header */}
@@ -344,6 +371,19 @@ export function StorePortalView({
             >
               <Clock className="w-4 h-4" />
               <span>Orders ({orders.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("messages")}
+              className={`py-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "messages"
+                  ? "border-emerald-500 text-emerald-400"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>Messages</span>
             </button>
 
             <button
@@ -822,7 +862,27 @@ export function StorePortalView({
               </div>
             )}
 
-            {/* TAB 3: ACCOUNT & SECURITY */}
+            {/* TAB 3: MESSAGES */}
+            {activeTab === "messages" && (
+              <div className="space-y-4 max-w-2xl">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">Messages with Admin</h2>
+                  <p className="text-xs text-slate-500">
+                    Chat with the Stillgood admin team. New messages arrive automatically every 5 seconds.
+                  </p>
+                </div>
+                <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-xs">
+                  <StoreMessageThread
+                    storeId={store.id}
+                    viewerRole="store"
+                    fetchMessages={fetchStoreMessages}
+                    sendMessage={sendStoreMessage}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: ACCOUNT & SECURITY */}
             {activeTab === "settings" && (
               <div className="space-y-6 max-w-xl">
                 <div>

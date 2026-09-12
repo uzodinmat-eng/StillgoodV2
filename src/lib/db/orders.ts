@@ -36,6 +36,9 @@ interface StoreFulfillmentRow {
   status: StoreFulfillment["status"];
   pickup_code: string;
   picked_up_at: Date | string | null;
+  confirmed_at: Date | string | null;
+  payout_released_at: Date | string | null;
+  created_at: Date | string | null;
 }
 
 interface OrderItemRow {
@@ -52,6 +55,7 @@ interface OrderItemRow {
   expiry_date: Date | string;
   fulfillment_status: "pending" | "available" | "unavailable" | "picked_up";
   refunded_at: Date | string | null;
+  decided_at: Date | string | null;
 }
 
 function parseOriginStores(value: unknown): Order["originStores"] {
@@ -82,6 +86,7 @@ function mapItem(row: OrderItemRow): OrderItemRecord {
     expiryDate: dateOnly(row.expiry_date),
     fulfillmentStatus: row.fulfillment_status,
     refundedAt: row.refunded_at ? isoTimestamp(row.refunded_at) : undefined,
+    decidedAt: row.decided_at ? isoTimestamp(row.decided_at) : undefined,
   };
 }
 
@@ -117,31 +122,72 @@ function mapOrder(row: OrderRow, items: OrderItemRecord[]): Order {
   };
 }
 
-async function fulfillmentsForOrder(orderId: string): Promise<StoreFulfillment[]> {
-  const rows = await query<StoreFulfillmentRow>(
-    `select store_id, subtotal, status, pickup_code, picked_up_at
-     from public.store_fulfillments where order_id = $1 order by store_id`,
-    [orderId]
-  );
-  return rows.map((row) => ({
+function mapFulfillment(row: StoreFulfillmentRow): StoreFulfillment {
+  return {
     storeId: row.store_id,
     subtotal: asInt(row.subtotal),
     status: row.status,
     pickupCode: row.pickup_code,
     pickedUpAt: row.picked_up_at ? isoTimestamp(row.picked_up_at) : undefined,
-  }));
+    confirmedAt: row.confirmed_at ? isoTimestamp(row.confirmed_at) : undefined,
+    payoutReleasedAt: row.payout_released_at
+      ? isoTimestamp(row.payout_released_at)
+      : undefined,
+    createdAt: row.created_at ? isoTimestamp(row.created_at) : undefined,
+  };
+}
+
+async function fulfillmentsForOrder(orderId: string): Promise<StoreFulfillment[]> {
+  try {
+    const rows = await query<StoreFulfillmentRow>(
+      `select store_id, subtotal, status, pickup_code, picked_up_at,
+              confirmed_at, payout_released_at, created_at
+       from public.store_fulfillments where order_id = $1 order by store_id`,
+      [orderId]
+    );
+    return rows.map(mapFulfillment);
+  } catch (error) {
+    // Tolerate databases where the admin-desk migration has not applied yet
+    // (the app-startup runner applies migrations lazily).
+    if (!(error instanceof Error) || !/confirmed_at|payout_released_at|column/i.test(error.message)) {
+      throw error;
+    }
+    const rows = await query<StoreFulfillmentRow>(
+      `select store_id, subtotal, status, pickup_code, picked_up_at
+       from public.store_fulfillments where order_id = $1 order by store_id`,
+      [orderId]
+    );
+    return rows.map(mapFulfillment);
+  }
 }
 
 async function itemsForOrder(orderId: string): Promise<OrderItemRecord[]> {
-  const rows = await query<OrderItemRow>(
-    `select product_id, product_name, brand, unit, price, original_price, quantity,
-            image_url, store_id, store_name, expiry_date, fulfillment_status, refunded_at
-     from public.order_items
-     where order_id = $1
-     order by sort_index asc`,
-    [orderId]
-  );
-  return rows.map(mapItem);
+  try {
+    const rows = await query<OrderItemRow>(
+      `select product_id, product_name, brand, unit, price, original_price, quantity,
+              image_url, store_id, store_name, expiry_date, fulfillment_status, refunded_at,
+              decided_at
+       from public.order_items
+       where order_id = $1
+       order by sort_index asc`,
+      [orderId]
+    );
+    return rows.map(mapItem);
+  } catch (error) {
+    // Tolerate databases where the decided_at migration has not applied yet.
+    if (!(error instanceof Error) || !/decided_at|column/i.test(error.message)) {
+      throw error;
+    }
+    const rows = await query<OrderItemRow>(
+      `select product_id, product_name, brand, unit, price, original_price, quantity,
+              image_url, store_id, store_name, expiry_date, fulfillment_status, refunded_at
+       from public.order_items
+       where order_id = $1
+       order by sort_index asc`,
+      [orderId]
+    );
+    return rows.map(mapItem);
+  }
 }
 
 export async function insertOrder(order: Order): Promise<Order> {
@@ -299,12 +345,12 @@ export async function findOrdersForStore(storeId: string, limit = 100): Promise<
   return orders;
 }
 
-export async function listAllOrders(limit = 100): Promise<Order[]> {
+export async function listAllOrders(limit = 100, offset = 0): Promise<Order[]> {
   const rows = await query<OrderRow>(
     `select * from public.orders
      order by created_at desc
-     limit $1`,
-    [limit]
+     limit $1 offset $2`,
+    [limit, offset]
   );
   const orders: Order[] = [];
   for (const row of rows) {

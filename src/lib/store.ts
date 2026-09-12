@@ -8,6 +8,7 @@ import { completeStorePickup, decideStoreOrderItem, findOrdersForStore } from ".
 import { findProductById, findProductsForStore, insertProduct, updateProduct } from "./db/products";
 import { createStoreWithdrawal, findStoreById, findStoreByOwnerId, getStoreBalances, listStores, markStoreWithdrawal, saveStorePayoutRecipient } from "./db/stores";
 import { createServerSupabase } from "./supabase/server";
+import { listStoreThread, sendStoreMessage, StoreMessage } from "./db/messages";
 import { Category, Customer, DateType, Order, Product, Store } from "./types";
 import { initiatePaystackTransfer } from "./paystack";
 
@@ -289,6 +290,43 @@ export async function withdrawStoreBalanceAction(input: { storeId: string; amoun
       return { success: false, error: error instanceof Error ? error.message : "Paystack transfer failed." };
     }
   } catch (error) { return { success: false, error: error instanceof Error ? error.message : "Withdrawal failed." };
+  }
+}
+
+export async function getStoreMessagesAction(
+  storeId: string
+): Promise<{ success: boolean; messages?: StoreMessage[]; error?: string }> {
+  try {
+    const { store } = await getAuthorizedStore(storeId);
+    const messages = await listStoreThread(store.id);
+    return { success: true, messages };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not load messages.",
+    };
+  }
+}
+
+export async function sendStoreMessageAction(
+  storeId: string,
+  body: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { customer, store } = await getAuthorizedStore(storeId);
+    await sendStoreMessage({
+      storeId: store.id,
+      senderRole: "store",
+      senderCustomerId: customer.id,
+      body,
+    });
+    revalidatePath("/store");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not send the message.",
+    };
   }
 }
 

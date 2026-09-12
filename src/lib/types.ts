@@ -172,6 +172,7 @@ export interface OrderItemRecord {
   expiryDate: string;
   fulfillmentStatus?: "pending" | "available" | "unavailable" | "picked_up";
   refundedAt?: string;
+  decidedAt?: string;
 }
 
 export type CustomerRole = "customer" | "admin" | "store_owner";
@@ -194,6 +195,9 @@ export interface StoreFulfillment {
   status: "pending" | "ready_for_pickup" | "picked_up" | "cancelled";
   pickupCode: string;
   pickedUpAt?: string;
+  confirmedAt?: string;
+  payoutReleasedAt?: string;
+  createdAt?: string;
 }
 
 export interface Order {
