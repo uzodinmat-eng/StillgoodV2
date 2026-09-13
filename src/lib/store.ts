@@ -80,9 +80,18 @@ async function getAuthorizedStore(targetStoreId?: string): Promise<{ customer: C
   const isAdmin = customerIsAdmin(customer);
 
   if (targetStoreId) {
-    const adminView = (await cookies()).get(ADMIN_VIEW_COOKIE)?.value;
-    if (!isAdmin || !validAdminView(adminView, targetStoreId)) throw new Error("Store selection is restricted to an active admin store view.");
-    store = await findStoreById(targetStoreId);
+    // Owners may act on their own store without the admin-view cookie; the
+    // signed cookie is only required to open a *different* store as admin.
+    const ownStore = customer.storeId
+      ? await findStoreById(customer.storeId)
+      : await findStoreByOwnerId(customer.id);
+    if (ownStore && ownStore.id === targetStoreId) {
+      store = ownStore;
+    } else {
+      const adminView = (await cookies()).get(ADMIN_VIEW_COOKIE)?.value;
+      if (!isAdmin || !validAdminView(adminView, targetStoreId)) throw new Error("Store selection is restricted to an active admin store view.");
+      store = await findStoreById(targetStoreId);
+    }
   } else if (customer.storeId) {
     store = await findStoreById(customer.storeId);
   } else {
@@ -295,29 +304,6 @@ export async function completeStorePickupAction(input: {
     return { success: false, error: message.replace(/^.*ERROR:\s*/i, "") };
   }
 }
-export async function signInStoreAction(
-  storeId: string,
-  password: string
-): Promise<{ success: boolean; error?: string }> {
-  const customer = await getSession();
-  if (!customer) return { success: false, error: "Please log in first." };
-  const isAdmin = customerIsAdmin(customer);
-  const store = await findStoreById(storeId);
-  if (!store || (!isAdmin && store.ownerId !== customer.id && customer.storeId !== store.id)) {
-    return { success: false, error: "You can only access your own store." };
-  }
-  const { queryOne } = await import("./db/client");
-  const row = await queryOne<{ password_hash: string | null }>(
-    "select password_hash from public.stores where id = $1",
-    [store.id]
-  );
-  if (!row?.password_hash || !(await verifyStorePassword(password, row.password_hash))) {
-    return { success: false, error: "Invalid store password." };
-  }
-  revalidatePath("/store");
-  return { success: true };
-}
-
 export async function enterAdminStoreViewAction(
   storeId: string,
   password: string

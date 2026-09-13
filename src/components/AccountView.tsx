@@ -224,7 +224,7 @@ export function AccountView({
                     Admin desk
                   </Link>
                 )}
-                {(customer.role === "store_owner" || customer.role === "admin" || customer.storeId) && (
+                {(customer.role === "admin" || customer.storeId) && (
                   <Link
                     href="/store"
                     className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-200 hover:text-white"

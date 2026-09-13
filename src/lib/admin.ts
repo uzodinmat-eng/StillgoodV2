@@ -317,15 +317,22 @@ export async function deleteStoreAsAdmin(
         error: "This store has order history, suspend it instead of deleting.",
       };
     }
-    // Delete products first (products.store_id has no cascade) and unlink any
-    // owner customers; single statement so it applies atomically. Reviews,
-    // review scores, and store_messages all cascade from stores.
+    // Delete products first (products.store_id has no cascade), unlink any
+    // owner customers, and demote owners left with no store back to customer
+    // so the account page stops showing a dead Store portal button. Single
+    // statement so it applies atomically. Reviews, review scores, and
+    // store_messages all cascade from stores.
     await execute(
       `with del_products as (
          delete from public.products where store_id = $1
        ),
        del_links as (
          update public.customers set store_id = null where store_id = $1
+       ),
+       demote_owners as (
+         update public.customers set role = 'customer', updated_at = now()
+         where store_id is null and role = 'store_owner'
+           and not exists (select 1 from public.stores s where s.owner_id = public.customers.id)
        )
        delete from public.stores where id = $1`,
       [id]

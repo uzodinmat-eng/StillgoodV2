@@ -33,7 +33,6 @@ import {
   markStoreThreadReadAction,
   saveStorePayoutRecipientAction,
   sendStoreMessageAction,
-  signInStoreAction,
   updateProductAction,
   withdrawStoreBalanceAction,
 } from "@/lib/store";
@@ -62,7 +61,6 @@ export function StorePortalView({
   products,
   orders,
   categories,
-  allStores = [],
   error,
   balances = { confirmed: 0, available: 0 },
 }: StorePortalViewProps) {
@@ -93,11 +91,6 @@ export function StorePortalView({
   const [nafdacRegNo, setNafdacRegNo] = useState("");
   const [conditionNotes, setConditionNotes] = useState("");
   const [images, setImages] = useState<string[]>([]);
-
-  // Store password gate state (owner login per store).
-  const [storePassword, setStorePassword] = useState("");
-  const [storeAuthMsg, setStoreAuthMsg] = useState<string | null>(null);
-  const [storeAuthError, setStoreAuthError] = useState<string | null>(null);
 
   // Password Change State
   const [oldPassword, setOldPassword] = useState("");
@@ -221,23 +214,6 @@ export function StorePortalView({
         setModalOpen(false);
         router.refresh();
       }, 700);
-    });
-  };
-
-  const handleStoreSignIn = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!store) return;
-    setStoreAuthMsg(null);
-    setStoreAuthError(null);
-    startTransition(async () => {
-      const res = await signInStoreAction(store.id, storePassword);
-      if (!res.success) {
-        setStoreAuthError(res.error || "Invalid store password.");
-        return;
-      }
-      setStoreAuthMsg("Store password verified.");
-      setStorePassword("");
-      router.refresh();
     });
   };
 
@@ -573,77 +549,30 @@ export function StorePortalView({
                 {withdrawMessage && <p className="mt-1 text-[10px] font-bold text-slate-700">{withdrawMessage}</p>}
               </div>
             </div>
-            <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-3 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-bold text-slate-600">Store access</p>
-                  <p className="text-[11px] text-slate-500">
-                    Owners verify this store password. Switch-store links are shown to admins
-                    with an active store view only.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await exitAdminStoreViewAction();
-                      router.push("/store");
-                      router.refresh();
-                    })
-                  }
-                  className="rounded-xl border border-slate-200 px-3 py-1.5 font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Exit admin store view
-                </button>
-              </div>
-              {storeAuthMsg && (
-                <p className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 font-bold text-emerald-800">
-                  {storeAuthMsg}
-                </p>
-              )}
-              {storeAuthError && (
-                <p className="rounded-xl bg-rose-50 border border-rose-200 px-3 py-2 font-bold text-rose-700">
-                  {storeAuthError}
-                </p>
-              )}
-              <form onSubmit={handleStoreSignIn} className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="password"
-                  value={storePassword}
-                  onChange={(e) => setStorePassword(e.target.value)}
-                  placeholder="Verify this store password"
-                  autoComplete="off"
-                  aria-label="Store password"
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={isPending || !storePassword}
-                  className="rounded-xl bg-slate-900 px-4 py-2 font-black text-white disabled:opacity-50"
-                >
-                  {isPending ? "Verifying…" : "Verify store password"}
-                </button>
-              </form>
-            </div>
-            {/* Multi-Store Switcher (admin store-view only; hidden for owners) */}
-            {allStores.length > 1 && customer.role === "admin" && (
-              <div className="p-4 bg-white rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <span className="font-bold text-slate-600">Managing Supermarket:</span>
-                <div className="flex gap-2 flex-wrap">
-                  {allStores.map((s) => (
-                    <Link
-                      key={s.id}
-                      href={`/store?storeId=${s.id}`}
-                      className={`px-3 py-1.5 rounded-xl font-bold border transition-all ${
-                        s.id === store.id
-                          ? "bg-emerald-800 text-white border-emerald-900"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      {s.name}
-                    </Link>
-                  ))}
+            {customer.role === "admin" && (
+              <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-3 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-slate-600">Admin store view</p>
+                    <p className="text-[11px] text-slate-500">
+                      Switch stores from the admin desk. This session opened this store
+                      through the password-gated admin entry.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await exitAdminStoreViewAction();
+                        router.push("/admin");
+                        router.refresh();
+                      })
+                    }
+                    className="rounded-xl border border-slate-200 px-3 py-1.5 font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Exit admin store view
+                  </button>
                 </div>
               </div>
             )}
