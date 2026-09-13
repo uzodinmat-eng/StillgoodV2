@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -34,11 +34,12 @@ import {
   completeStorePickupAction,
   decideStoreOrderItemAction,
   createProductAction,
+  getStoreMessagesAction,
+  markStoreThreadReadAction,
+  saveStorePayoutRecipientAction,
+  sendStoreMessageAction,
   updateProductAction,
   withdrawStoreBalanceAction,
-  saveStorePayoutRecipientAction,
-  getStoreMessagesAction,
-  sendStoreMessageAction,
 } from "@/lib/store";
 import {
   Category,
@@ -48,7 +49,6 @@ import {
   Product,
   Store,
 } from "@/lib/types";
-
 interface StorePortalViewProps {
   customer: Customer | null;
   store: Store | null;
@@ -286,6 +286,14 @@ export function StorePortalView({
     },
     [storeId]
   );
+
+  // Mark the thread read whenever the store opens the Messages tab so admin
+  // unread badges clear. Fire-and-forget: read state is best-effort.
+  useEffect(() => {
+    if (activeTab === "messages" && storeId) {
+      void markStoreThreadReadAction(storeId);
+    }
+  }, [activeTab, storeId]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">

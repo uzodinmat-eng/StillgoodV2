@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,21 +13,30 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { AdminSignInForm } from "@/components/AdminSignInForm";
+import { DailyRevenueChart, RefundsChart, TopStoresChart } from "@/components/AdminCharts";
 import { StoreMessageThread, ThreadMessage } from "@/components/StoreMessageThread";
 import {
   createStoreAction,
   deleteProductAsAdmin,
   deleteStoreAsAdmin,
   getStoreThreadAction,
+  getUnreadCountsAction,
+  listDecidedRefundsAction,
   listStoreProductsAction,
+  markThreadReadAction,
+  payRefundAction,
+  rejectRefundAction,
   sendAdminMessageAction,
   setStoreActiveAction,
   setStoreStatusAction,
+  verifyRefundAccountAction,
 } from "@/lib/admin";
 import { logout } from "@/lib/auth";
 import { formatNaira } from "@/lib/pricing";
 import { Customer, Order, Store, STORE_AREAS, StoreStatus } from "@/lib/types";
 import type { AdminStats, AdminStatsFilters } from "@/lib/db/admin-stats";
+import type { UnreadCounts } from "@/lib/db/messages";
+import type { WalletRefundRequest } from "@/lib/db/refunds";
 
 interface AdminViewProps {
   customer: Customer | null;
@@ -38,6 +47,8 @@ interface AdminViewProps {
   areas?: Store["area"][];
   stats?: AdminStats | null;
   filters?: AdminStatsFilters;
+  pendingRefunds?: WalletRefundRequest[];
+  decidedRefunds?: WalletRefundRequest[];
 }
 
 type StoreProductRow = {
@@ -77,6 +88,7 @@ function AdminStoreRow({
   const [productsError, setProductsError] = useState<string | null>(null);
   const [rowMsg, setRowMsg] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const loadProducts = useCallback(async () => {
@@ -114,13 +126,12 @@ function AdminStoreRow({
   };
 
   const handleDelete = () => {
-    if (
-      !window.confirm(
-        `${store.name} will be permanently deleted. Stores with order history cannot be deleted — suspend them instead. Continue?`
-      )
-    ) {
+    if (!confirmDelete) {
+      // First click arms the inline confirm; second click runs the delete.
+      setConfirmDelete(true);
       return;
     }
+    setConfirmDelete(false);
     setRowMsg(null);
     setRowError(null);
     startTransition(async () => {
@@ -135,7 +146,6 @@ function AdminStoreRow({
   };
 
   const handleRemoveProduct = (productId: string, productName: string) => {
-    if (!window.confirm(`Remove "${productName}" from the marketplace?`)) return;
     setRowMsg(null);
     setRowError(null);
     startTransition(async () => {
@@ -149,24 +159,6 @@ function AdminStoreRow({
       onChanged();
     });
   };
-
-  const fetchMessages = useCallback(async (): Promise<ThreadMessage[]> => {
-    const result = await getStoreThreadAction(store.id);
-    if (!result.success) {
-      throw new Error(result.error || "Could not load messages.");
-    }
-    return (result.messages || []).map((m) => ({
-      id: m.id,
-      senderRole: m.senderRole,
-      body: m.body,
-      createdAt: m.createdAt,
-    }));
-  }, [store.id]);
-
-  const sendMessage = useCallback(
-    async (body: string) => sendAdminMessageAction(store.id, body),
-    [store.id]
-  );
 
   return (
     <>
@@ -199,20 +191,48 @@ function AdminStoreRow({
           </button>
         </td>
         <td className="py-2 text-right space-x-2 whitespace-nowrap">
-          <Link
-            href={`/stores/${store.slug}`}
-            className="text-[11px] font-bold text-emerald-700 hover:underline"
-          >
-            View
-          </Link>
           <button
             type="button"
             disabled={isPending}
-            onClick={handleDelete}
-            className="px-2.5 py-1 rounded-lg bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-[11px] disabled:opacity-50"
+            onClick={handleActiveToggle}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-black disabled:opacity-50 ${
+              store.isActive
+                ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+            }`}
+            title={store.isActive ? "Suspend this store" : "Re-activate this store"}
           >
-            Delete
+            {store.isActive ? "Suspend" : "Activate"}
           </button>
+          {confirmDelete ? (
+            <>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={handleDelete}
+                className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] disabled:opacity-50"
+              >
+                Confirm delete?
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => setConfirmDelete(false)}
+                className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-[11px] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleDelete}
+              className="px-2.5 py-1 rounded-lg bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-[11px] disabled:opacity-50"
+            >
+              Delete
+            </button>
+          )}
         </td>
       </tr>
       {(rowMsg || rowError) && (
@@ -226,65 +246,51 @@ function AdminStoreRow({
       {expanded && (
         <tr className="border-t border-slate-50 bg-slate-50/60">
           <td colSpan={5} className="py-3 px-3">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600">
-                    Products ({products?.length ?? "…"}) — lazy loaded
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => void loadProducts()}
-                    disabled={productsLoading}
-                    className="text-[11px] font-bold text-emerald-700 hover:underline disabled:opacity-50"
-                  >
-                    {productsLoading ? "Loading…" : "Reload"}
-                  </button>
-                </div>
-                {productsError && (
-                  <p className="text-[11px] font-bold text-rose-600">{productsError}</p>
-                )}
-                {productsLoading && !products && (
-                  <p className="text-[11px] text-slate-500">Loading products…</p>
-                )}
-                {products && products.length === 0 && (
-                  <p className="text-[11px] text-slate-500">No products listed.</p>
-                )}
-                {products && products.length > 0 && (
-                  <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
-                    {products.map((p) => (
-                      <li key={p.id} className="py-2 flex items-center justify-between gap-2 text-xs">
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-800 truncate">{p.name}</p>
-                          <p className="text-[11px] text-slate-500">
-                            {p.brand} • {formatNaira(p.currentPrice)} • {p.stockQuantity} in stock
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => handleRemoveProduct(p.id, p.name)}
-                          className="shrink-0 px-2 py-1 rounded-lg bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-[11px] disabled:opacity-50"
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  Messages with {store.name}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                  Products ({products?.length ?? "…"}) — lazy loaded
                 </h3>
-                <StoreMessageThread
-                  storeId={store.id}
-                  viewerRole="admin"
-                  fetchMessages={fetchMessages}
-                  sendMessage={sendMessage}
-                />
+                <button
+                  type="button"
+                  onClick={() => void loadProducts()}
+                  disabled={productsLoading}
+                  className="text-[11px] font-bold text-emerald-700 hover:underline disabled:opacity-50"
+                >
+                  {productsLoading ? "Loading…" : "Reload"}
+                </button>
               </div>
+              {productsError && (
+                <p className="text-[11px] font-bold text-rose-600">{productsError}</p>
+              )}
+              {productsLoading && !products && (
+                <p className="text-[11px] text-slate-500">Loading products…</p>
+              )}
+              {products && products.length === 0 && (
+                <p className="text-[11px] text-slate-500">No products listed.</p>
+              )}
+              {products && products.length > 0 && (
+                <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                  {products.map((p) => (
+                    <li key={p.id} className="py-2 flex items-center justify-between gap-2 text-xs">
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-800 truncate">{p.name}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {p.brand} • {formatNaira(p.currentPrice)} • {p.stockQuantity} in stock
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleRemoveProduct(p.id, p.name)}
+                        className="shrink-0 px-2 py-1 rounded-lg bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-[11px] disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </td>
         </tr>
@@ -302,9 +308,12 @@ export function AdminView({
   areas = STORE_AREAS,
   stats = null,
   filters = {},
+  pendingRefunds = [],
+  decidedRefunds = [],
 }: AdminViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [activeTab, setActiveTab] = useState<"analytics" | "orders" | "stores" | "register" | "messages" | "refunds">("analytics");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -418,8 +427,188 @@ export function AdminView({
     return [...groups.entries()].sort((a, b) => b[1].orders.length - a[1].orders.length);
   }, [visibleOrders]);
 
+  // Messages tab: unread badge polls every 5s; thread list sorted unread-first.
+  const [unread, setUnread] = useState<UnreadCounts>({ perStore: [], total: 0 });
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    const load = async () => {
+      const result = await getUnreadCountsAction();
+      if (!cancelled && result.success && result.counts) {
+        setUnread(result.counts);
+      }
+    };
+    void load();
+    const timer = setInterval(() => void load(), 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isAdmin]);
+
+  const unreadByStore = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of unread.perStore) map.set(entry.storeId, entry.unread);
+    return map;
+  }, [unread]);
+
+  const messageThreads = useMemo(() => {
+    return [...stores]
+      .map((store) => ({ store, unreadCount: unreadByStore.get(store.id) ?? 0 }))
+      .sort((a, b) => b.unreadCount - a.unreadCount || a.store.name.localeCompare(b.store.name));
+  }, [stores, unreadByStore]);
+
+  useEffect(() => {
+    if (activeTab !== "messages") return;
+    if (!activeThreadId && messageThreads.length > 0) {
+      // Deferred so the Messages tab badge effect stays subscription-style.
+      const timer = setTimeout(() => setActiveThreadId(messageThreads[0].store.id), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, activeThreadId, messageThreads]);
+
+  const activeThread = messageThreads.find((t) => t.store.id === activeThreadId) || null;
+
+  const fetchActiveMessages = useCallback(async (): Promise<ThreadMessage[]> => {
+    if (!activeThreadId) return [];
+    const result = await getStoreThreadAction(activeThreadId);
+    if (!result.success) {
+      throw new Error(result.error || "Could not load messages.");
+    }
+    return (result.messages || []).map((m) => ({
+      id: m.id,
+      senderRole: m.senderRole,
+      body: m.body,
+      createdAt: m.createdAt,
+    }));
+  }, [activeThreadId]);
+
+  const sendActiveMessage = useCallback(
+    async (body: string) => {
+      if (!activeThreadId) return { success: false, error: "Pick a store thread first." };
+      return sendAdminMessageAction(activeThreadId, body);
+    },
+    [activeThreadId]
+  );
+
+  const openThread = (storeId: string) => {
+    setActiveThreadId(storeId);
+    void markThreadReadAction(storeId).then(() => {
+      void getUnreadCountsAction().then((result) => {
+        if (result.success && result.counts) setUnread(result.counts);
+      });
+    });
+  };
+
+  // Refunds tab: pending table with Verify → Pay; history with from/to filters.
+  const [refundMsg, setRefundMsg] = useState<string | null>(null);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [refundBusyId, setRefundBusyId] = useState<string | null>(null);
+  const [verifyState, setVerifyState] = useState<Record<string, { resolvedName: string; nameMatch: boolean }>>({});
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [history, setHistory] = useState<WalletRefundRequest[]>(decidedRefunds);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Keep the history table in sync when the server payload refreshes; applied
+  // in a microtask + length guard so the effect body itself only subscribes.
+  const historyKey = decidedRefunds.map((r) => r.id).join(",");
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      setHistory((current) => (current.length === decidedRefunds.length ? current : decidedRefunds));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyKey]);
+
+  const runRefundOp = (id: string, op: () => Promise<{ success: boolean; error?: string }>, okMsg: string) => {
+    setRefundMsg(null);
+    setRefundError(null);
+    setRefundBusyId(id);
+    startTransition(async () => {
+      try {
+        const res = await op();
+        if (!res.success) {
+          setRefundError(res.error || "Refund action failed.");
+          return;
+        }
+        setRefundMsg(okMsg);
+        router.refresh();
+      } finally {
+        setRefundBusyId(null);
+      }
+    });
+  };
+
+  const handleVerify = (refund: WalletRefundRequest) => {
+    setRefundMsg(null);
+    setRefundError(null);
+    setRefundBusyId(refund.id);
+    startTransition(async () => {
+      try {
+        const res = await verifyRefundAccountAction(refund.id);
+        if (!res.success) {
+          setRefundError(res.error || "Could not verify the account.");
+          return;
+        }
+        setVerifyState((current) => ({
+          ...current,
+          [refund.id]: { resolvedName: res.resolvedName || "", nameMatch: res.nameMatch || false },
+        }));
+        setRefundMsg(
+          res.nameMatch
+            ? `Verified: ${res.resolvedName} ✓ — Pay is now enabled.`
+            : `Name mismatch: account resolves to "${res.resolvedName}". Payout blocked.`
+        );
+        router.refresh();
+      } finally {
+        setRefundBusyId(null);
+      }
+    });
+  };
+
+  const handlePay = (refund: WalletRefundRequest) => {
+    runRefundOp(
+      refund.id,
+      () => payRefundAction(refund.id),
+      `Paid ${formatNaira(refund.netAmount)} to ${refund.bankName} •• ${refund.accountNumber.slice(-4)}.`
+    );
+  };
+
+  const handleReject = (refund: WalletRefundRequest) => {
+    runRefundOp(refund.id, () => rejectRefundAction(refund.id), "Request rejected.");
+  };
+
+  const loadHistory = () => {
+    setHistoryLoading(true);
+    startTransition(async () => {
+      const res = await listDecidedRefundsAction({
+        from: historyFrom || undefined,
+        to: historyTo || undefined,
+      });
+      if (res.success && res.requests) {
+        setHistory(res.requests);
+      } else {
+        setRefundError(res.error || "Could not load refund history.");
+      }
+      setHistoryLoading(false);
+    });
+  };
+
+  const refundRowState = (refund: WalletRefundRequest): { resolvedName: string | null; nameMatch: boolean | null } => {
+    const local = verifyState[refund.id];
+    if (local) return local;
+    return { resolvedName: refund.resolvedAccountName, nameMatch: refund.nameMatch };
+  };
+
   const kpis = [
-    { label: "Wallet total", value: stats ? formatNaira(stats.walletTotal) : "—" },
+    { label: "Wallet total", value: stats ? formatNaira(stats.walletTotal) : "—", caption: "current total, not date-filtered" },
     { label: "Pending orders", value: stats ? String(stats.pendingOrders) : "—" },
     { label: "Confirmed orders", value: stats ? String(stats.confirmedOrders) : "—" },
     { label: "Pickup-fee total", value: stats ? formatNaira(stats.pickupFeeTotal) : "—" },
@@ -428,6 +617,15 @@ export function AdminView({
     { label: "Confirmed items", value: stats ? String(stats.confirmedItemCount) : "—" },
     { label: "Unconfirmed items", value: stats ? String(stats.unconfirmedItemCount) : "—" },
     { label: "Commission (12%)", value: stats ? formatNaira(stats.commission) : "—" },
+  ];
+
+  const tabs = [
+    { id: "analytics" as const, label: "Analytics" },
+    { id: "orders" as const, label: `Orders (${visibleOrders.length})` },
+    { id: "stores" as const, label: `Stores (${stores.length})` },
+    { id: "register" as const, label: "Register Store" },
+    { id: "messages" as const, label: "Messages", badge: unread.total },
+    { id: "refunds" as const, label: `Refunds (${pendingRefunds.length})` },
   ];
 
   return (
@@ -539,74 +737,7 @@ export function AdminView({
               </section>
             )}
 
-            {/* KPI cards */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
-              <h2 className="text-sm font-black uppercase tracking-wider">
-                Analytics {from || to ? `(${from || "…"} → ${to || "…"})` : "(all time)"}
-              </h2>
-              {!stats && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-bold">
-                  Stats are unavailable right now — showing desk lists only.
-                </p>
-              )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {kpis.map((kpi) => (
-                  <div key={kpi.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                      {kpi.label}
-                    </p>
-                    <p className="mt-1 text-lg font-black text-slate-900">{kpi.value}</p>
-                  </div>
-                ))}
-              </div>
-              {stats && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600 mb-2">
-                      Orders by store
-                    </h3>
-                    {stats.ordersByStore.length === 0 ? (
-                      <p className="text-xs text-slate-500">No orders in range.</p>
-                    ) : (
-                      <ul className="divide-y divide-slate-100 text-xs max-h-56 overflow-y-auto">
-                        {stats.ordersByStore.map((row) => (
-                          <li key={row.storeId} className="py-1.5 flex items-center justify-between gap-2">
-                            <span className="font-bold text-slate-800 truncate">
-                              {row.storeName}{" "}
-                              <span className="font-normal text-slate-400">({row.area})</span>
-                            </span>
-                            <span className="text-slate-600 whitespace-nowrap">
-                              {row.orderCount} orders • {formatNaira(row.revenue)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600 mb-2">
-                      Orders by area
-                    </h3>
-                    {stats.ordersByArea.length === 0 ? (
-                      <p className="text-xs text-slate-500">No orders in range.</p>
-                    ) : (
-                      <ul className="divide-y divide-slate-100 text-xs max-h-56 overflow-y-auto">
-                        {stats.ordersByArea.map((row) => (
-                          <li key={row.area || "unknown"} className="py-1.5 flex items-center justify-between gap-2">
-                            <span className="font-bold text-slate-800">{row.area || "Unknown"}</span>
-                            <span className="text-slate-600 whitespace-nowrap">
-                              {row.orderCount} orders • {formatNaira(row.revenue)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
-            </section>
-
-            {/* Filter bar */}
+            {/* Filter bar — above the tabs so it visibly drives Analytics + Orders */}
             <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <h2 className="text-sm font-black uppercase tracking-wider">Filters</h2>
               <form onSubmit={applyFilters} className="grid sm:grid-cols-5 gap-3 items-end">
@@ -676,6 +807,109 @@ export function AdminView({
               </form>
             </section>
 
+            {/* Tab navigation */}
+            <nav className="flex flex-wrap gap-2" aria-label="Admin sections">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-colors ${
+                    activeTab === tab.id
+                      ? "bg-slate-900 text-white"
+                      : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  {tab.label}
+                  {typeof tab.badge === "number" && tab.badge > 0 && (
+                    <span className="min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-black">
+                      {tab.badge > 99 ? "99+" : tab.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+
+            {/* Analytics tab: KPIs + charts */}
+            {activeTab === "analytics" && (
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+              <h2 className="text-sm font-black uppercase tracking-wider">
+                Analytics {from || to ? `(${from || "…"} → ${to || "…"})` : "(all time)"}
+              </h2>
+              {!stats && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-bold">
+                  Stats are unavailable right now — showing desk lists only.
+                </p>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {kpis.map((kpi) => (
+                  <div key={kpi.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      {kpi.label}
+                    </p>
+                    <p className="mt-1 text-lg font-black text-slate-900">{kpi.value}</p>
+                    {"caption" in kpi && kpi.caption && (
+                      <p className="mt-0.5 text-[10px] text-slate-400 font-medium">{kpi.caption}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {stats && (
+                <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <DailyRevenueChart series={stats.dailySeries} formatNaira={formatNaira} />
+                  <RefundsChart series={stats.dailySeries} formatNaira={formatNaira} />
+                </div>
+                <TopStoresChart stores={stats.ordersByStore} formatNaira={formatNaira} />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 p-4">
+                    <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600 mb-2">
+                      Orders by store
+                    </h3>
+                    {stats.ordersByStore.length === 0 ? (
+                      <p className="text-xs text-slate-500">No orders in range.</p>
+                    ) : (
+                      <ul className="divide-y divide-slate-100 text-xs max-h-56 overflow-y-auto">
+                        {stats.ordersByStore.map((row) => (
+                          <li key={row.storeId} className="py-1.5 flex items-center justify-between gap-2">
+                            <span className="font-bold text-slate-800 truncate">
+                              {row.storeName}{" "}
+                              <span className="font-normal text-slate-400">({row.area})</span>
+                            </span>
+                            <span className="text-slate-600 whitespace-nowrap">
+                              {row.orderCount} orders • {formatNaira(row.revenue)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 p-4">
+                    <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600 mb-2">
+                      Orders by area
+                    </h3>
+                    {stats.ordersByArea.length === 0 ? (
+                      <p className="text-xs text-slate-500">No orders in range.</p>
+                    ) : (
+                      <ul className="divide-y divide-slate-100 text-xs max-h-56 overflow-y-auto">
+                        {stats.ordersByArea.map((row) => (
+                          <li key={row.area || "unknown"} className="py-1.5 flex items-center justify-between gap-2">
+                            <span className="font-bold text-slate-800">{row.area || "Unknown"}</span>
+                            <span className="text-slate-600 whitespace-nowrap">
+                              {row.orderCount} orders • {formatNaira(row.revenue)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+                </>
+              )}
+            </section>
+            )}
+
+            {activeTab === "register" && (
             <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <Plus className="w-4 h-4 text-emerald-600" />
@@ -761,7 +995,9 @@ export function AdminView({
                 </div>
               </form>
             </section>
+            )}
 
+            {activeTab === "stores" && (
             <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-600" />
@@ -793,7 +1029,9 @@ export function AdminView({
                 </table>
               </div>
             </section>
+            )}
 
+            {activeTab === "orders" && (
             <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <ClipboardList className="w-4 h-4 text-emerald-600" />
@@ -891,6 +1129,249 @@ export function AdminView({
                 </div>
               ))}
             </section>
+            )}
+
+            {activeTab === "messages" && (
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-emerald-600" />
+                <h2 className="text-sm font-black uppercase tracking-wider">
+                  Messages {unread.total > 0 ? `(${unread.total} unread)` : ""}
+                </h2>
+              </div>
+              {messageThreads.length === 0 ? (
+                <p className="text-xs text-slate-500">No stores to message yet.</p>
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+                  <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 overflow-hidden max-h-96 overflow-y-auto">
+                    {messageThreads.map(({ store, unreadCount }) => (
+                      <li key={store.id}>
+                        <button
+                          type="button"
+                          onClick={() => openThread(store.id)}
+                          className={`w-full text-left px-3 py-2.5 text-xs flex items-center justify-between gap-2 ${
+                            activeThreadId === store.id ? "bg-emerald-50" : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className="font-bold text-slate-800 truncate">{store.name}</span>
+                          {unreadCount > 0 && (
+                            <span className="shrink-0 min-w-5 h-5 px-1 inline-flex items-center justify-center rounded-full bg-rose-600 text-white text-[10px] font-black">
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="space-y-2">
+                    {activeThread ? (
+                      <>
+                        <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                          {activeThread.store.name}
+                        </h3>
+                        <StoreMessageThread
+                          key={activeThread.store.id}
+                          storeId={activeThread.store.id}
+                          viewerRole="admin"
+                          fetchMessages={fetchActiveMessages}
+                          sendMessage={sendActiveMessage}
+                        />
+                      </>
+                    ) : (
+                      <p className="text-xs text-slate-500">Pick a store thread.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+            )}
+
+            {activeTab === "refunds" && (
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6">
+              <h2 className="text-sm font-black uppercase tracking-wider">
+                Wallet payouts ({pendingRefunds.length} pending)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Verify the bank account first — Pay is enabled only when the resolved name
+                matches the customer. Payout transfers net = amount − ₦100 fee.
+              </p>
+              {refundMsg && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                  {refundMsg}
+                </div>
+              )}
+              {refundError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
+                  {refundError}
+                </div>
+              )}
+              <div className="space-y-2">
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                  Pending requests
+                </h3>
+                {pendingRefunds.length === 0 ? (
+                  <p className="text-xs text-slate-500">No pending payout requests.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                    <table className="w-full text-left text-xs">
+                      <thead className="text-slate-500 uppercase tracking-wider bg-slate-50">
+                        <tr>
+                          <th className="py-2 px-3">Customer</th>
+                          <th className="py-2 pr-3">Amount</th>
+                          <th className="py-2 pr-3">Fee</th>
+                          <th className="py-2 pr-3">Net</th>
+                          <th className="py-2 pr-3">Bank / account</th>
+                          <th className="py-2 pr-3">Verification</th>
+                          <th className="py-2 px-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingRefunds.map((refund) => {
+                          const state = refundRowState(refund);
+                          const verified = state.nameMatch === true && !!state.resolvedName;
+                          const busy = refundBusyId === refund.id;
+                          return (
+                            <tr key={refund.id} className="border-t border-slate-100">
+                              <td className="py-2 px-3">
+                                <div className="font-bold text-slate-800">{refund.customerName || refund.accountName}</div>
+                                <div className="text-[10px] text-slate-400">{new Date(refund.createdAt).toLocaleString()}</div>
+                              </td>
+                              <td className="py-2 pr-3 font-bold">{formatNaira(refund.amount)}</td>
+                              <td className="py-2 pr-3">{formatNaira(refund.fee)}</td>
+                              <td className="py-2 pr-3 font-bold text-emerald-700">{formatNaira(refund.netAmount)}</td>
+                              <td className="py-2 pr-3 text-slate-600">
+                                <div className="font-bold">{refund.bankName}</div>
+                                <div className="font-mono">{refund.accountNumber}</div>
+                              </td>
+                              <td className="py-2 pr-3">
+                                {state.resolvedName ? (
+                                  <span className={`inline-flex items-center gap-1 font-bold ${state.nameMatch ? "text-emerald-700" : "text-rose-600"}`}>
+                                    {state.resolvedName} {state.nameMatch ? "✓" : "✗"}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">Not verified</span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-right space-x-2 whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => handleVerify(refund)}
+                                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] disabled:opacity-50"
+                                >
+                                  {busy ? "…" : "Verify"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy || !verified}
+                                  title={verified ? `Pay ${formatNaira(refund.netAmount)}` : "Verify with a matching name first"}
+                                  onClick={() => handlePay(refund)}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] disabled:opacity-50"
+                                >
+                                  Pay
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => handleReject(refund)}
+                                  className="px-2.5 py-1 rounded-lg bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-[11px] disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                    Fulfilled / failed / rejected ({history.length})
+                  </h3>
+                  <div className="flex gap-2 items-end">
+                    <label className="text-[11px] font-bold text-slate-500 space-y-1">
+                      <span>From</span>
+                      <input
+                        type="date"
+                        value={historyFrom}
+                        onChange={(e) => setHistoryFrom(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                      />
+                    </label>
+                    <label className="text-[11px] font-bold text-slate-500 space-y-1">
+                      <span>To</span>
+                      <input
+                        type="date"
+                        value={historyTo}
+                        onChange={(e) => setHistoryTo(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={historyLoading}
+                      onClick={loadHistory}
+                      className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold disabled:opacity-50"
+                    >
+                      {historyLoading ? "Loading…" : "Filter"}
+                    </button>
+                  </div>
+                </div>
+                {history.length === 0 ? (
+                  <p className="text-xs text-slate-500">No decided requests yet.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                    <table className="w-full text-left text-xs">
+                      <thead className="text-slate-500 uppercase tracking-wider bg-slate-50">
+                        <tr>
+                          <th className="py-2 px-3">Customer</th>
+                          <th className="py-2 pr-3">Amount</th>
+                          <th className="py-2 pr-3">Net</th>
+                          <th className="py-2 pr-3">Bank</th>
+                          <th className="py-2 pr-3">Status</th>
+                          <th className="py-2 px-3">Decided</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.map((refund) => (
+                          <tr key={refund.id} className="border-t border-slate-100">
+                            <td className="py-2 px-3 font-bold text-slate-800">
+                              {refund.customerName || refund.accountName}
+                            </td>
+                            <td className="py-2 pr-3">{formatNaira(refund.amount)}</td>
+                            <td className="py-2 pr-3">{formatNaira(refund.netAmount)}</td>
+                            <td className="py-2 pr-3 text-slate-600">
+                              {refund.bankName} •• {refund.accountNumber.slice(-4)}
+                            </td>
+                            <td className="py-2 pr-3">
+                              <span
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                                  refund.status === "fulfilled"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : refund.status === "failed"
+                                      ? "bg-rose-100 text-rose-800"
+                                      : "bg-slate-200 text-slate-600"
+                                }`}
+                              >
+                                {refund.status}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-slate-500">
+                              {refund.decidedAt ? new Date(refund.decidedAt).toLocaleString() : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </section>
+            )}
           </>
         )}
       </main>

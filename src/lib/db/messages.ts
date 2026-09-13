@@ -1,4 +1,4 @@
-import { execute, isoTimestamp, query } from "./client";
+import { asInt, execute, isoTimestamp, query } from "./client";
 
 export type StoreMessageSenderRole = "admin" | "store";
 
@@ -95,4 +95,43 @@ export async function sendStoreMessage(input: {
     createdAt: new Date().toISOString(),
     readAt: null,
   };
+}
+
+// Marks every message sent by the *other* side as read, from the viewer's side.
+export async function markThreadRead(
+  storeId: string,
+  viewerRole: StoreMessageSenderRole
+): Promise<void> {
+  const id = storeId.trim();
+  if (!id) throw new Error("Missing store id.");
+  if (viewerRole !== "admin" && viewerRole !== "store") {
+    throw new Error("Unknown viewer role.");
+  }
+  await execute(
+    `update public.store_messages
+     set read_at = now()
+     where store_id = $1
+       and sender_role != $2
+       and read_at is null`,
+    [id, viewerRole]
+  );
+}
+
+export interface UnreadCounts {
+  perStore: { storeId: string; unread: number }[];
+  total: number;
+}
+
+// Per-store unread counts of store-sent (i.e. awaiting admin) messages, plus
+// the total used for the Messages tab badge.
+export async function getUnreadCounts(): Promise<UnreadCounts> {
+  const rows = await query<{ store_id: string; unread: number | string }>(
+    `select store_id, count(*)::int as unread
+     from public.store_messages
+     where sender_role = 'store' and read_at is null
+     group by store_id`
+  );
+  const perStore = rows.map((row) => ({ storeId: row.store_id, unread: asInt(row.unread) }));
+  const total = perStore.reduce((sum, entry) => sum + entry.unread, 0);
+  return { perStore, total };
 }

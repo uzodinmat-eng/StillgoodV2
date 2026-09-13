@@ -8,7 +8,7 @@ import { completeStorePickup, decideStoreOrderItem, findOrdersForStore } from ".
 import { findProductById, findProductsForStore, insertProduct, updateProduct } from "./db/products";
 import { createStoreWithdrawal, findStoreById, findStoreByOwnerId, getStoreBalances, listStores, markStoreWithdrawal, saveStorePayoutRecipient } from "./db/stores";
 import { createServerSupabase } from "./supabase/server";
-import { listStoreThread, sendStoreMessage, StoreMessage } from "./db/messages";
+import { listStoreThread, markThreadRead, sendStoreMessage, StoreMessage } from "./db/messages";
 import { Category, Customer, DateType, Order, Product, Store } from "./types";
 import { initiatePaystackTransfer } from "./paystack";
 
@@ -326,6 +326,22 @@ export async function sendStoreMessageAction(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Could not send the message.",
+    };
+  }
+}
+
+export async function markStoreThreadReadAction(
+  storeId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { store } = await getAuthorizedStore(storeId);
+    await markThreadRead(store.id, "store");
+    revalidatePath("/store");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not mark the thread as read.",
     };
   }
 }

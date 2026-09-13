@@ -1,4 +1,4 @@
-import { asInt, query, queryOne } from "./client";
+import { asInt, dateOnly, query, queryOne } from "./client";
 
 // Status buckets locked by the admin-desk plan: pending vs confirmed orders,
 // confirmed purchases (available/picked_up items), 12% commission on confirmed subtotal.
@@ -40,6 +40,14 @@ export interface AreaOrderStat {
   revenue: number;
 }
 
+export interface DailyStat {
+  date: string;
+  orders: number;
+  revenue: number;
+  pickupFees: number;
+  refunds: number;
+}
+
 export interface AdminStats {
   walletTotal: number;
   pendingOrders: number;
@@ -52,6 +60,7 @@ export interface AdminStats {
   commission: number;
   ordersByStore: StoreOrderStat[];
   ordersByArea: AreaOrderStat[];
+  dailySeries: DailyStat[];
 }
 
 // Date range always filters orders.created_at; callers pass ISO bounds.
@@ -211,6 +220,8 @@ export async function getAdminStats(
     confirmedPurchaseTotal * ADMIN_STATS_COMMISSION_RATE
   );
 
+  const dailySeries = await getDailySeries(filters);
+
   return {
     walletTotal,
     pendingOrders,
@@ -233,5 +244,100 @@ export async function getAdminStats(
       orderCount: asInt(row.n),
       revenue: asInt(row.revenue),
     })),
+    dailySeries,
   };
+}
+
+// Daily buckets over the requested range for the SVG charts: last 30 days by
+// default when no range is given, capped at 90 days.
+function resolveSeriesBounds(filters: AdminStatsFilters): { start: string; end: string } {
+  const toDate = (value?: string): Date | null => {
+    if (!value) return null;
+    const parsed = new Date(value.length <= 10 ? `${value}T23:59:59.999Z` : value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const fromDate = (value?: string): Date | null => {
+    if (!value) return null;
+    const parsed = new Date(value.length <= 10 ? `${value}T00:00:00.000Z` : value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const today = new Date();
+  const end = toDate(filters.to) ?? today;
+  let start = fromDate(filters.from) ?? new Date(end.getTime() - 29 * 86400000);
+  if (start.getTime() > end.getTime()) start = new Date(end.getTime());
+  const maxSpanMs = 89 * 86400000;
+  if (end.getTime() - start.getTime() > maxSpanMs) {
+    start = new Date(end.getTime() - maxSpanMs);
+  }
+  const fmt = (d: Date): string => d.toISOString().slice(0, 10);
+  return { start: fmt(start), end: fmt(end) };
+}
+
+async function getDailySeries(filters: AdminStatsFilters): Promise<DailyStat[]> {
+  const { start, end } = resolveSeriesBounds(filters);
+
+  const orderConds: string[] = [];
+  const orderParams: unknown[] = [start, end];
+  if (filters.storeId) {
+    orderParams.push(filters.storeId);
+    orderConds.push(`o.store_id = $${orderParams.length}`);
+  }
+  if (filters.area) {
+    orderParams.push(filters.area);
+    orderConds.push(`o.store_area = $${orderParams.length}`);
+  }
+  const orderExtra = orderConds.length > 0 ? `and ${orderConds.join(" and ")}` : "";
+
+  const orderRows = await query<{ day: Date | string; n: number | string; revenue: number | string; fees: number | string }>(
+    `select d.day::date as day,
+            count(o.id)::int as n,
+            coalesce(sum(o.total), 0)::int as revenue,
+            coalesce(sum(o.pickup_fee), 0)::int as fees
+     from (select generate_series($1::date, $2::date, interval '1 day')::date as day) d
+     left join public.orders o
+       on o.created_at::date = d.day ${orderExtra}
+     group by d.day
+     order by d.day`,
+    orderParams
+  );
+
+  const refundConds: string[] = [];
+  const refundParams: unknown[] = [start, end];
+  if (filters.storeId) {
+    refundParams.push(filters.storeId);
+    refundConds.push(`oi.store_id = $${refundParams.length}`);
+  }
+  if (filters.area) {
+    refundParams.push(filters.area);
+    refundConds.push(`o.store_area = $${refundParams.length}`);
+  }
+  const refundExtra = refundConds.length > 0 ? `and ${refundConds.join(" and ")}` : "";
+
+  const refundRows = await query<{ day: Date | string; total: number | string }>(
+    `select d.day::date as day,
+            coalesce(sum(case when le.amount > 0 then le.amount else 0 end), 0)::int as total
+     from (select generate_series($1::date, $2::date, interval '1 day')::date as day) d
+     left join public.ledger_entries le
+       on le.created_at::date = d.day
+       and le.kind = 'item_refund' and le.ref_type = 'order_item'
+     left join public.order_items oi on oi.id = le.ref_id
+     left join public.orders o on o.id = oi.order_id ${refundExtra}
+     group by d.day
+     order by d.day`,
+    refundParams
+  );
+  const refundByDay = new Map(
+    refundRows.map((row) => [dateOnly(row.day), asInt(row.total)])
+  );
+
+  return orderRows.map((row) => {
+    const date = dateOnly(row.day);
+    return {
+      date,
+      orders: asInt(row.n),
+      revenue: asInt(row.revenue),
+      pickupFees: asInt(row.fees),
+      refunds: refundByDay.get(date) ?? 0,
+    };
+  });
 }

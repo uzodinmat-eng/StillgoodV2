@@ -2,7 +2,6 @@ import { getAdminDesk } from "@/lib/admin";
 import { AdminView } from "@/components/AdminView";
 
 export const dynamic = "force-dynamic";
-
 function firstParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
@@ -31,6 +30,8 @@ export default async function AdminPage({
       areas={desk.areas}
       stats={desk.stats}
       filters={desk.filters}
+      pendingRefunds={desk.pendingRefunds}
+      decidedRefunds={desk.decidedRefunds}
     />
   );
 }

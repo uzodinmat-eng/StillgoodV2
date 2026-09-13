@@ -82,3 +82,84 @@ export async function initiatePaystackTransfer(input: { amountNaira: number; rec
     body: JSON.stringify({ source: "balance", amount: Math.round(input.amountNaira * 100), recipient: input.recipientCode, reference: input.reference, reason: input.reason }),
   });
 }
+
+export interface PaystackBank {
+  id: number;
+  name: string;
+  slug: string;
+  code: string;
+  longcode: string;
+  gateway: string | null;
+  active: boolean;
+}
+
+// Short in-memory cache so the bank dropdown does not hit Paystack on every render.
+let cachedBanks: { banks: PaystackBank[]; fetchedAt: number } | null = null;
+const BANK_CACHE_TTL_MS = 10 * 60 * 1000;
+
+export async function listPaystackBanks(): Promise<PaystackBank[]> {
+  if (cachedBanks && Date.now() - cachedBanks.fetchedAt < BANK_CACHE_TTL_MS) {
+    return cachedBanks.banks;
+  }
+  const banks = await paystackRequest<PaystackBank[]>("/bank?currency=NGN", {
+    method: "GET",
+  });
+  cachedBanks = { banks, fetchedAt: Date.now() };
+  return banks;
+}
+
+export interface PaystackAccountResolution {
+  account_number: string;
+  account_name: string;
+}
+
+export async function resolvePaystackAccount(input: {
+  accountNumber: string;
+  bankCode: string;
+}): Promise<PaystackAccountResolution> {
+  const params = new URLSearchParams({
+    account_number: input.accountNumber.trim(),
+    bank_code: input.bankCode.trim(),
+  });
+  return paystackRequest<PaystackAccountResolution>(`/bank/resolve?${params.toString()}`, {
+    method: "GET",
+  });
+}
+
+export async function createPaystackRecipient(input: {
+  name: string;
+  accountNumber: string;
+  bankCode: string;
+}): Promise<{ recipient_code: string }> {
+  return paystackRequest<{ recipient_code: string }>("/transferrecipient", {
+    method: "POST",
+    body: JSON.stringify({
+      type: "nuban",
+      name: input.name.trim(),
+      account_number: input.accountNumber.trim(),
+      bank_code: input.bankCode.trim(),
+      currency: "NGN",
+    }),
+  });
+}
+
+function normalizeNameTokens(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+// Locked name-match rule: the normalized resolved name must contain every token
+// of the customer's name, or vice versa; otherwise the payout is blocked with
+// the resolved name shown.
+export function paystackNamesMatch(customerName: string, resolvedName: string): boolean {
+  const customerTokens = normalizeNameTokens(customerName);
+  const resolvedTokens = normalizeNameTokens(resolvedName);
+  if (customerTokens.length === 0 || resolvedTokens.length === 0) return false;
+  const customerInResolved = customerTokens.every((token) => resolvedTokens.includes(token));
+  const resolvedInCustomer = resolvedTokens.every((token) => customerTokens.includes(token));
+  return customerInResolved || resolvedInCustomer;
+}

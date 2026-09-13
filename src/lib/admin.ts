@@ -5,7 +5,9 @@ import { getSession } from "./auth";
 import { customerIsAdmin } from "./auth-utils";
 import { execute, queryOne } from "./db/client";
 import { getAdminStats, AdminStats, AdminStatsFilters } from "./db/admin-stats";
-import { listStoreThread, sendStoreMessage, StoreMessage } from "./db/messages";
+import { getRefundRequest, failRefund, fulfillRefund, listRefundRequests, rejectRefund, setRefundResolved, WalletRefundRequest, WalletRefundStatus } from "./db/refunds";
+import { createPaystackRecipient, initiatePaystackTransfer, paystackNamesMatch, resolvePaystackAccount } from "./paystack";
+import { getUnreadCounts, listStoreThread, markThreadRead, sendStoreMessage, StoreMessage, UnreadCounts } from "./db/messages";
 import { listAllOrders } from "./db/orders";
 import { insertStore, listStores, STORE_AREAS, updateStoreStatus } from "./db/stores";
 import { Customer, Order, Store, StoreStatus } from "./types";
@@ -49,6 +51,8 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
   areas: Store["area"][];
   stats: AdminStats | null;
   filters: AdminDeskFilters;
+  pendingRefunds: WalletRefundRequest[];
+  decidedRefunds: WalletRefundRequest[];
 }> {
   const customer = await getSession();
   const isAdmin = customerIsAdmin(customer);
@@ -62,12 +66,22 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
       areas: STORE_AREAS,
       stats: null,
       filters,
+      pendingRefunds: [],
+      decidedRefunds: [],
     };
   }
-  const [allStores, orders, stats] = await Promise.all([
+  const [allStores, orders, stats, pendingRefunds, decidedRefunds] = await Promise.all([
     listStores({ all: true }),
     listAllOrders(ADMIN_DESK_ORDER_LIMIT),
     getAdminStats(filters).catch(() => null),
+    listRefundRequests({ status: "pending", limit: 200 }).catch((): WalletRefundRequest[] => []),
+    Promise.all([
+      listRefundRequests({ status: "fulfilled", limit: 100 }).catch((): WalletRefundRequest[] => []),
+      listRefundRequests({ status: "failed", limit: 100 }).catch((): WalletRefundRequest[] => []),
+      listRefundRequests({ status: "rejected", limit: 100 }).catch((): WalletRefundRequest[] => []),
+    ]).then(([fulfilled, failed, rejected]) =>
+      [...fulfilled, ...failed, ...rejected].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 200)
+    ),
   ]);
   const approvedStores = allStores.filter((s) => s.status !== "pending");
   const pendingStores = allStores.filter((s) => s.status === "pending");
@@ -81,6 +95,8 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
     areas: STORE_AREAS,
     stats,
     filters,
+    pendingRefunds,
+    decidedRefunds,
   };
 }
 
@@ -137,6 +153,58 @@ export async function sendAdminMessageAction(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Could not send the message.",
+    };
+  }
+}
+
+export async function getUnreadCountsAction(): Promise<{
+  success: boolean;
+  counts?: UnreadCounts;
+  error?: string;
+}> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Not allowed.",
+    };
+  }
+
+  try {
+    const counts = await getUnreadCounts();
+    return { success: true, counts };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not load unread counts.",
+    };
+  }
+}
+
+export async function markThreadReadAction(
+  storeId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Not allowed.",
+    };
+  }
+
+  const id = storeId.trim();
+  if (!id) return { success: false, error: "Missing store id." };
+
+  try {
+    await markThreadRead(id, "admin");
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not mark the thread as read.",
     };
   }
 }
@@ -379,5 +447,186 @@ export async function createStoreAction(
       return { success: false, error: "A store with that name already exists." };
     }
     return { success: false, error: "Could not save the store." };
+  }
+}
+
+// Admin verify: resolves the account via Paystack, records the resolved name +
+// name-match flag, and returns the resolved name so the Refunds tab can gate
+// Pay on it. The locked name-match rule: the normalized resolved name must
+// contain every token of the customer's name, or vice versa.
+export async function verifyRefundAccountAction(
+  refundId: string
+): Promise<{ success: boolean; resolvedName?: string; nameMatch?: boolean; error?: string }> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Not allowed.",
+    };
+  }
+
+  const id = refundId.trim();
+  if (!id) return { success: false, error: "Missing refund id." };
+
+  try {
+    const refund = await getRefundRequest(id);
+    if (!refund) return { success: false, error: "Refund request not found." };
+    if (refund.status !== "pending") {
+      return { success: false, error: "This request is no longer pending." };
+    }
+    const resolved = await resolvePaystackAccount({
+      accountNumber: refund.accountNumber,
+      bankCode: refund.bankCode,
+    });
+    const customerName = refund.accountName || refund.customerName || "";
+    const nameMatch = paystackNamesMatch(customerName, resolved.account_name);
+    await setRefundResolved(id, {
+      resolvedAccountName: resolved.account_name,
+      nameMatch,
+    });
+    revalidatePath("/admin");
+    return { success: true, resolvedName: resolved.account_name, nameMatch };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not verify the account.",
+    };
+  }
+}
+
+// Admin payout: creates a Paystack recipient, transfers net = amount − ₦100,
+// then debits the wallet + marks fulfilled in one atomic transaction. On
+// transfer failure the request is marked failed WITHOUT touching the wallet
+// (nothing was debited yet — `failRefund`, not `reverseRefund`).
+export async function payRefundAction(
+  refundId: string
+): Promise<{ success: boolean; transferCode?: string; error?: string }> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Not allowed.",
+    };
+  }
+
+  const id = refundId.trim();
+  if (!id) return { success: false, error: "Missing refund id." };
+
+  try {
+    const refund = await getRefundRequest(id);
+    if (!refund) return { success: false, error: "Refund request not found." };
+    if (refund.status !== "pending") {
+      return { success: false, error: "This request is no longer pending." };
+    }
+    if (refund.nameMatch !== true || !refund.resolvedAccountName) {
+      return {
+        success: false,
+        error: "Verify the account first — payout is blocked until the name matches.",
+      };
+    }
+    const customerName = refund.accountName || refund.customerName || "";
+    if (!paystackNamesMatch(customerName, refund.resolvedAccountName)) {
+      return {
+        success: false,
+        error: `Name mismatch: account resolves to "${refund.resolvedAccountName}".`,
+      };
+    }
+    const recipient = await createPaystackRecipient({
+      name: refund.resolvedAccountName,
+      accountNumber: refund.accountNumber,
+      bankCode: refund.bankCode,
+    });
+    let transferCode: string;
+    try {
+      const transfer = await initiatePaystackTransfer({
+        amountNaira: refund.netAmount,
+        recipientCode: recipient.recipient_code,
+        reference: `wrr_${refund.id}`,
+        reason: `Stillgood wallet payout for ${customerName}`,
+      });
+      transferCode = transfer.transfer_code;
+    } catch (error) {
+      await failRefund(id);
+      revalidatePath("/admin");
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Paystack transfer failed.",
+      };
+    }
+    await fulfillRefund(id, {
+      paystackRecipientCode: recipient.recipient_code,
+      paystackTransferCode: transferCode,
+    });
+    revalidatePath("/admin");
+    revalidatePath("/account");
+    return { success: true, transferCode };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not pay the refund.",
+    };
+  }
+}
+
+export async function rejectRefundAction(
+  refundId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Not allowed.",
+    };
+  }
+
+  const id = refundId.trim();
+  if (!id) return { success: false, error: "Missing refund id." };
+
+  try {
+    await rejectRefund(id);
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not reject the request.",
+    };
+  }
+}
+
+// History query for the fulfilled/failed/rejected table (from/to day filters).
+export async function listDecidedRefundsAction(input?: {
+  from?: string;
+  to?: string;
+}): Promise<{ success: boolean; requests?: WalletRefundRequest[]; error?: string }> {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Not allowed.",
+    };
+  }
+
+  try {
+    const statuses: WalletRefundStatus[] = ["fulfilled", "failed", "rejected"];
+    const groups = await Promise.all(
+      statuses.map((status) =>
+        listRefundRequests({ status, from: input?.from, to: input?.to, limit: 200 })
+      )
+    );
+    const requests = groups
+      .flat()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 300);
+    return { success: true, requests };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Could not load refund history.",
+    };
   }
 }
