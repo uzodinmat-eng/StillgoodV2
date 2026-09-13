@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Camera, Upload, X, AlertCircle } from "lucide-react";
 
@@ -15,6 +15,8 @@ export function ProductImageCapture({ images, onChange }: ProductImageCapturePro
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => () => { streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   // File Upload Handler (reads file as base64 data URL)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,12 +48,13 @@ export function ProductImageCapture({ images, onChange }: ProductImageCapturePro
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setCameraActive(true);
-    } catch (err) {
+      requestAnimationFrame(async () => {
+        if (!videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => undefined);
+      });
+    } catch {
       setCameraError("Camera access was denied or not available. Use file upload instead.");
       setCameraActive(false);
     }

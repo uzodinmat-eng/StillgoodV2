@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { createHmac, randomBytes, scrypt as nodeScrypt } from "node:crypto";
+import { promisify } from "node:util";
 import { getSession } from "./auth";
 import { customerIsAdmin } from "./auth-utils";
 import { loadCatalog } from "./db/catalog";
@@ -9,8 +12,45 @@ import { findProductById, findProductsForStore, insertProduct, updateProduct } f
 import { createStoreWithdrawal, findStoreById, findStoreByOwnerId, getStoreBalances, listStores, markStoreWithdrawal, saveStorePayoutRecipient } from "./db/stores";
 import { createServerSupabase } from "./supabase/server";
 import { listStoreThread, markThreadRead, sendStoreMessage, StoreMessage } from "./db/messages";
+import { withdrawalFeeFor } from "./pricing";
 import { Category, Customer, DateType, Order, Product, Store } from "./types";
 import { initiatePaystackTransfer } from "./paystack";
+
+const scrypt = promisify(nodeScrypt);
+const ADMIN_VIEW_COOKIE = "stillgood_admin_store_view";
+const ADMIN_VIEW_TTL = 15 * 60;
+
+async function hashStorePassword(
+  password: string,
+  salt = randomBytes(16).toString("hex")
+): Promise<string> {
+  const derived = (await scrypt(password, salt, 64)) as Buffer;
+  return `${salt}:${derived.toString("hex")}`;
+}
+
+async function verifyStorePassword(password: string, encoded: string): Promise<boolean> {
+  const [salt, expected] = encoded.split(":");
+  if (!salt || !expected) return false;
+  const actual = (await scrypt(password, salt, 64)) as Buffer;
+  return actual.toString("hex") === expected;
+}
+
+function signAdminView(storeId: string, expires: number): string {
+  const value = `${storeId}.${expires}`;
+  const secret = process.env.ADMIN_STORE_VIEW_PASSWORD || "";
+  const sig = createHmac("sha256", secret).update(value).digest("hex");
+  return `${value}.${sig}`;
+}
+
+function validAdminView(value: string | undefined, storeId: string): boolean {
+  if (!value || !process.env.ADMIN_STORE_VIEW_PASSWORD) return false;
+  const [id, exp, sig] = value.split(".");
+  if (id !== storeId || Number(exp) <= Math.floor(Date.now() / 1000)) return false;
+  const expected = createHmac("sha256", process.env.ADMIN_STORE_VIEW_PASSWORD)
+    .update(`${id}.${exp}`)
+    .digest("hex");
+  return sig === expected;
+}
 
 export type ProductListingInput = {
   storeId: string;
@@ -40,6 +80,8 @@ async function getAuthorizedStore(targetStoreId?: string): Promise<{ customer: C
   const isAdmin = customerIsAdmin(customer);
 
   if (targetStoreId) {
+    const adminView = (await cookies()).get(ADMIN_VIEW_COOKIE)?.value;
+    if (!isAdmin || !validAdminView(adminView, targetStoreId)) throw new Error("Store selection is restricted to an active admin store view.");
     store = await findStoreById(targetStoreId);
   } else if (customer.storeId) {
     store = await findStoreById(customer.storeId);
@@ -253,7 +295,101 @@ export async function completeStorePickupAction(input: {
     return { success: false, error: message.replace(/^.*ERROR:\s*/i, "") };
   }
 }
-export async function changeStorePasswordAction(newPassword: string): Promise<{ success: boolean; error?: string }> {
+export async function signInStoreAction(
+  storeId: string,
+  password: string
+): Promise<{ success: boolean; error?: string }> {
+  const customer = await getSession();
+  if (!customer) return { success: false, error: "Please log in first." };
+  const isAdmin = customerIsAdmin(customer);
+  const store = await findStoreById(storeId);
+  if (!store || (!isAdmin && store.ownerId !== customer.id && customer.storeId !== store.id)) {
+    return { success: false, error: "You can only access your own store." };
+  }
+  const { queryOne } = await import("./db/client");
+  const row = await queryOne<{ password_hash: string | null }>(
+    "select password_hash from public.stores where id = $1",
+    [store.id]
+  );
+  if (!row?.password_hash || !(await verifyStorePassword(password, row.password_hash))) {
+    return { success: false, error: "Invalid store password." };
+  }
+  revalidatePath("/store");
+  return { success: true };
+}
+
+export async function enterAdminStoreViewAction(
+  storeId: string,
+  password: string
+): Promise<{ success: boolean; error?: string }> {
+  const customer = await getSession();
+  if (!customer || !customerIsAdmin(customer)) {
+    return { success: false, error: "Admin access required." };
+  }
+  if (!process.env.ADMIN_STORE_VIEW_PASSWORD || password !== process.env.ADMIN_STORE_VIEW_PASSWORD) {
+    return { success: false, error: "Invalid admin store-view password." };
+  }
+  if (!(await findStoreById(storeId))) return { success: false, error: "Store not found." };
+  (await cookies()).set(
+    ADMIN_VIEW_COOKIE,
+    signAdminView(storeId, Math.floor(Date.now() / 1000) + ADMIN_VIEW_TTL),
+    {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: ADMIN_VIEW_TTL,
+      path: "/",
+    }
+  );
+  revalidatePath("/store");
+  return { success: true };
+}
+
+export async function exitAdminStoreViewAction(): Promise<{ success: boolean }> {
+  (await cookies()).delete(ADMIN_VIEW_COOKIE);
+  revalidatePath("/store");
+  return { success: true };
+}
+
+export async function changeStorePasswordAction(input: {
+  storeId: string;
+  oldPassword: string;
+  newPassword: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const customer = await getSession();
+  if (!customer) return { success: false, error: "Please log in first." };
+  const store = await findStoreById(input.storeId);
+  if (
+    !store ||
+    (store.ownerId !== customer.id && customer.storeId !== store.id && !customerIsAdmin(customer))
+  ) {
+    return { success: false, error: "You can only change your own store password." };
+  }
+  if (!input.newPassword || input.newPassword.length < 6) {
+    return { success: false, error: "Password must be at least 6 characters." };
+  }
+  const { queryOne, execute } = await import("./db/client");
+  const row = await queryOne<{ password_hash: string | null }>(
+    "select password_hash from public.stores where id = $1",
+    [store.id]
+  );
+  if (
+    !customerIsAdmin(customer) &&
+    row?.password_hash &&
+    !(await verifyStorePassword(input.oldPassword, row.password_hash))
+  ) {
+    return { success: false, error: "Current password is incorrect." };
+  }
+  await execute("update public.stores set password_hash = $2, updated_at = now() where id = $1", [
+    store.id,
+    await hashStorePassword(input.newPassword),
+  ]);
+  revalidatePath("/store");
+  return { success: true };
+}
+
+/* Legacy auth password action retained for compatibility. */
+export async function changeLegacyAuthPasswordAction(newPassword: string): Promise<{ success: boolean; error?: string }> {
   if (!newPassword || newPassword.length < 6) {
     return { success: false, error: "Password must be at least 6 characters." };
   }
@@ -273,18 +409,19 @@ export async function changeStorePasswordAction(newPassword: string): Promise<{ 
   }
 }
 
-export async function withdrawStoreBalanceAction(input: { storeId: string; amount: number }): Promise<{ success: boolean; error?: string; transferCode?: string }> {
+export async function withdrawStoreBalanceAction(input: { storeId: string; amount: number }): Promise<{ success: boolean; error?: string; transferCode?: string; fee?: number; netAmount?: number }> {
   try {
     const { store } = await getAuthorizedStore(input.storeId);
     const balances = await getStoreBalances(store.id);
     if (!store.paystackRecipientCode) return { success: false, error: "Attach a Paystack payout account before withdrawing." };
     if (!Number.isInteger(input.amount) || input.amount <= 0) return { success: false, error: "Enter a valid withdrawal amount." };
     if (input.amount > balances.available) return { success: false, error: "Withdrawal exceeds your available balance." };
+    const { fee, net } = withdrawalFeeFor(input.amount);
     const withdrawalId = await createStoreWithdrawal(store.id, input.amount, store.paystackRecipientCode);
     try {
-      const transfer = await initiatePaystackTransfer({ amountNaira: input.amount, recipientCode: store.paystackRecipientCode, reference: withdrawalId, reason: `Stillgood payout for ${store.name}` });
+      const transfer = await initiatePaystackTransfer({ amountNaira: net, recipientCode: store.paystackRecipientCode, reference: withdrawalId, reason: `Stillgood payout for ${store.name}` });
       await markStoreWithdrawal(withdrawalId, "success", transfer.transfer_code);
-      return { success: true, transferCode: transfer.transfer_code };
+      return { success: true, transferCode: transfer.transfer_code, fee, netAmount: net };
     } catch (error) {
       await markStoreWithdrawal(withdrawalId, "failed");
       return { success: false, error: error instanceof Error ? error.message : "Paystack transfer failed." };

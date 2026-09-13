@@ -2,8 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
+import { useRouter } from "next/navigation";import {
   ArrowLeft,
   Building2,
   ClipboardList,
@@ -31,6 +30,10 @@ import {
   setStoreStatusAction,
   verifyRefundAccountAction,
 } from "@/lib/admin";
+import {
+  enterAdminStoreViewAction,
+  exitAdminStoreViewAction,
+} from "@/lib/store";
 import { logout } from "@/lib/auth";
 import { formatNaira } from "@/lib/pricing";
 import { Customer, Order, Store, STORE_AREAS, StoreStatus } from "@/lib/types";
@@ -321,6 +324,10 @@ export function AdminView({
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [openHours, setOpenHours] = useState("8:00 AM – 9:00 PM (Daily)");
+  const [storeViewId, setStoreViewId] = useState(stores[0]?.id || "");
+  const [storeViewPassword, setStoreViewPassword] = useState("");
+  const [storeViewMsg, setStoreViewMsg] = useState<string | null>(null);
+  const [storeViewError, setStoreViewError] = useState<string | null>(null);
 
   // Filter bar state, seeded from the URL search params the page received.
   const [from, setFrom] = useState(filters.from || "");
@@ -347,6 +354,40 @@ export function AdminView({
     setAreaFilter("");
     router.push("/admin");
     router.refresh();
+  };
+
+  const handleEnterStoreView = () => {
+    setStoreViewMsg(null);
+    setStoreViewError(null);
+    if (!storeViewId) {
+      setStoreViewError("Select a store first.");
+      return;
+    }
+    if (!storeViewPassword) {
+      setStoreViewError("Enter the admin store-view password.");
+      return;
+    }
+    startTransition(async () => {
+      const result = await enterAdminStoreViewAction(storeViewId, storeViewPassword);
+      if (!result.success) {
+        setStoreViewError(result.error || "Could not open the store view.");
+        return;
+      }
+      setStoreViewMsg("Store view activated. Opening the selected store…");
+      setStoreViewPassword("");
+      router.push(`/store?storeId=${encodeURIComponent(storeViewId)}`);
+      router.refresh();
+    });
+  };
+
+  const handleExitStoreView = () => {
+    setStoreViewMsg(null);
+    setStoreViewError(null);
+    startTransition(async () => {
+      await exitAdminStoreViewAction();
+      setStoreViewMsg("Admin store view cleared.");
+      router.refresh();
+    });
   };
 
   const handleCreate = (event: React.FormEvent) => {
@@ -670,6 +711,69 @@ export function AdminView({
 
         {isAdmin && (
           <>
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-black uppercase tracking-wider">Switch to store view</h2>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={handleExitStoreView}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-[11px] font-bold disabled:opacity-50"
+                >
+                  Exit store view
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Admin-only. Pick a store, enter the shared store-view password, then open that
+                store portal. The password is checked server-side and is never stored here.
+              </p>
+              {storeViewMsg && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                  {storeViewMsg}
+                </div>
+              )}
+              {storeViewError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
+                  {storeViewError}
+                </div>
+              )}
+              <div className="grid sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                <label className="text-[11px] font-bold text-slate-500 space-y-1">
+                  <span>Store</span>
+                  <select
+                    value={storeViewId}
+                    onChange={(e) => setStoreViewId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                  >
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-[11px] font-bold text-slate-500 space-y-1">
+                  <span>Store-view password</span>
+                  <input
+                    type="password"
+                    value={storeViewPassword}
+                    onChange={(e) => setStoreViewPassword(e.target.value)}
+                    placeholder="Admin store-view password"
+                    autoComplete="off"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={isPending || !storeViewId}
+                  onClick={handleEnterStoreView}
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold disabled:opacity-50"
+                >
+                  {isPending ? "Opening…" : "Open store view"}
+                </button>
+              </div>
+            </section>
+
             {/* Pending Store Approvals Section */}
             {pendingStores.length > 0 && (
               <section className="rounded-3xl border border-amber-300 bg-amber-50/70 p-6 space-y-4">

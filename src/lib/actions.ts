@@ -15,9 +15,10 @@ import {
   needsConsolidation,
   toOriginStoreRefs,
 } from "./fulfillment";
-import { debitWallet, getSession, updateCustomerProfile } from "./auth";
-import { normalizeNgPhone } from "./auth-utils";
+import { getSession, updateCustomerProfile } from "./auth";
+import { customerIsAdmin, normalizeNgPhone } from "./auth-utils";
 import { findOrderById, insertOrder } from "./db/orders";
+
 import { createOrderPayment, findOrderPayment, markPaystackPaymentSuccessful } from "./db/payments";
 import { verifyPaystackTransaction } from "./paystack";
 import { initializePaystackTransaction } from "./paystack";
@@ -396,7 +397,13 @@ export async function createOrder(data: {
  */
 export async function getOrderById(orderId: string): Promise<Order | null> {
   const normalized = orderId.trim().toUpperCase();
+  const session = await getSession();
+  if (!session) return null;
   const order = await findOrderById(normalized);
+  if (order && !customerIsAdmin(session)) {
+    const owns = order.customerId === session.id || order.customerEmail.toLowerCase() === session.email.toLowerCase() || (order.customerPhone && order.customerPhone === session.phone);
+    if (!owns) return null;
+  }
 
   // Self-healing path: if the webhook is delayed or never fired, verify the
   // payment directly with Paystack when the customer opens the order page.

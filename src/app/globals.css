@@ -46,3 +46,9 @@ body {
 .animate-pulse-subtle {
   animation: pulse-subtle 2.5s infinite ease-in-out;
 }
+
+button, [role="button"] { transition: filter 120ms ease, transform 120ms ease, opacity 120ms ease; }
+button:not(:disabled):active, [role="button"]:active { filter: brightness(0.92); transform: translateY(1px); }
+button:not(:disabled):hover, [role="button"]:hover { filter: brightness(1.04); }
+button:focus-visible, [role="button"]:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
+button:disabled { cursor: not-allowed; opacity: 0.55; }

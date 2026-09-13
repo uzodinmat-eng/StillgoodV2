@@ -1,4 +1,4 @@
-import { DateType, DriftScheduleStep, Product, UrgencyLevel } from "./types";
+import { DateType, DriftScheduleStep, UrgencyLevel } from "./types";
 
 /**
  * Formats a number to Nigerian Naira currency display
@@ -200,4 +200,14 @@ export function generateDriftSchedule({
  */
 export function calculateSavings(originalPrice: number, currentPrice: number, quantity = 1): number {
   return Math.max(0, (originalPrice - currentPrice) * quantity);
+}
+
+/**
+ * Store withdrawal fee: 1% of the gross amount, capped at ₦5,000.
+ * Returns the fee plus the net Paystack transfer amount.
+ */
+export function withdrawalFeeFor(grossAmount: number): { fee: number; net: number } {
+  const normalized = Number.isFinite(grossAmount) ? Math.floor(grossAmount) : 0;
+  const fee = Math.min(5000, Math.max(0, Math.round(normalized * 0.01)));
+  return { fee, net: Math.max(0, normalized - fee) };
 }

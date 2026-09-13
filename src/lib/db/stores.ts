@@ -34,6 +34,7 @@ interface StoreRow {
   payout_bank_name?: string | null;
   payout_account_name?: string | null;
   payout_account_number?: string | null;
+  password_hash?: string | null;
 }
 
 function asStatus(value: string | null | undefined): StoreStatus {
@@ -75,7 +76,7 @@ function mapStore(row: StoreRow, dealCount = 0): Store {
 const STORE_COLUMNS = `id, name, slug, area, address, phone, rating, review_count,
         open_hours, pickup_instructions, image_url, banner_image_url,
         lat, lng, is_active, status, owner_id, cac_number, store_type,
-        paystack_recipient_code, payout_bank_name, payout_account_name, payout_account_number`;
+        paystack_recipient_code, payout_bank_name, payout_account_name, payout_account_number, password_hash`;
 
 export function slugifyStoreName(name: string): string {
   const slug = name
@@ -256,8 +257,10 @@ export async function insertStore(input: {
 }
 
 export async function getStoreBalances(storeId: string): Promise<{ confirmed: number; available: number }> {
+  // Confirmed = reversible holds only: +holds, -later revocations, +restorations, -pickup releases.
+  // The pickup release moves settled funds to the available wallet, so it must reduce confirmed.
   const row = await queryOne<{ confirmed: number | string; available: number | string }>(`select
-    coalesce((select sum(amount) from public.ledger_entries where wallet_id = 'wallet_store_pending_' || $1 and kind in ('confirmed_hold', 'item_refund_reversal', 'confirmed_hold_reversal', 'item_refund')), 0) as confirmed,
+    coalesce((select sum(amount) from public.ledger_entries where wallet_id = 'wallet_store_pending_' || $1 and kind in ('confirmed_hold', 'item_refund_reversal', 'confirmed_hold_reversal', 'payout_release')), 0) as confirmed,
     coalesce((select sum(amount) from public.ledger_entries where wallet_id = 'wallet_store_available_' || $1), 0) as available`, [storeId]);
   return { confirmed: Math.max(0, asInt(row?.confirmed)), available: Math.max(0, asInt(row?.available)) };
 }

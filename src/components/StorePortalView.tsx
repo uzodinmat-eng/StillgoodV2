@@ -7,20 +7,14 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
-  Calendar,
-  CheckCircle2,
   Clock,
   KeyRound,
   LogOut,
   MessageSquare,
   Package,
-  PackagePlus,
   Plus,
-  RefreshCw,
   Search,
-  ShieldAlert,
   ShieldCheck,
-  ShoppingBag,
   Store as StoreIcon,
   X,
 } from "lucide-react";
@@ -28,16 +22,18 @@ import { AuthModal } from "@/components/AuthModal";
 import { ProductImageCapture } from "@/components/ProductImageCapture";
 import { StoreMessageThread, ThreadMessage } from "@/components/StoreMessageThread";
 import { logout } from "@/lib/auth";
-import { formatNaira } from "@/lib/pricing";
+import { formatNaira, withdrawalFeeFor } from "@/lib/pricing";
 import {
   changeStorePasswordAction,
   completeStorePickupAction,
   decideStoreOrderItemAction,
   createProductAction,
+  exitAdminStoreViewAction,
   getStoreMessagesAction,
   markStoreThreadReadAction,
   saveStorePayoutRecipientAction,
   sendStoreMessageAction,
+  signInStoreAction,
   updateProductAction,
   withdrawStoreBalanceAction,
 } from "@/lib/store";
@@ -98,7 +94,13 @@ export function StorePortalView({
   const [conditionNotes, setConditionNotes] = useState("");
   const [images, setImages] = useState<string[]>([]);
 
+  // Store password gate state (owner login per store).
+  const [storePassword, setStorePassword] = useState("");
+  const [storeAuthMsg, setStoreAuthMsg] = useState<string | null>(null);
+  const [storeAuthError, setStoreAuthError] = useState<string | null>(null);
+
   // Password Change State
+  const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -222,18 +224,36 @@ export function StorePortalView({
     });
   };
 
+  const handleStoreSignIn = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!store) return;
+    setStoreAuthMsg(null);
+    setStoreAuthError(null);
+    startTransition(async () => {
+      const res = await signInStoreAction(store.id, storePassword);
+      if (!res.success) {
+        setStoreAuthError(res.error || "Invalid store password.");
+        return;
+      }
+      setStoreAuthMsg("Store password verified.");
+      setStorePassword("");
+      router.refresh();
+    });
+  };
+
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordMsg(null);
     setPasswordError(null);
 
     startTransition(async () => {
-      const res = await changeStorePasswordAction(newPassword);
+      const res = await changeStorePasswordAction({ storeId: store?.id || "", oldPassword, newPassword });
       if (!res.success) {
         setPasswordError(res.error || "Failed to update password.");
         return;
       }
       setPasswordMsg("Password changed successfully!");
+      setOldPassword("");
       setNewPassword("");
     });
   };
@@ -412,6 +432,11 @@ export function StorePortalView({
 
       {/* Body Content */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        {error && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-700">
+            {error}
+          </div>
+        )}
         {/* Not logged in */}
         {!customer && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center space-y-4 max-w-md mx-auto shadow-sm">
@@ -497,15 +522,112 @@ export function StorePortalView({
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Withdraw</p>
                 <div className="mt-2 flex gap-2">
-                  <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value.replace(/\D/g, ""))} placeholder="Amount" className="min-w-0 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs" />
-                  <button type="button" disabled={isPending || !withdrawAmount} onClick={() => startTransition(async () => { setWithdrawMessage(""); const result = await withdrawStoreBalanceAction({ storeId: store.id, amount: Number(withdrawAmount) }); setWithdrawMessage(result.success ? "Withdrawal sent to Paystack." : result.error || "Withdrawal failed."); if (result.success) { setWithdrawAmount(""); router.refresh(); } })} className="rounded-lg bg-slate-900 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-50">Withdraw</button>
+                  <input
+                    value={withdrawAmount}
+                    inputMode="numeric"
+                    onChange={(e) => setWithdrawAmount(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Gross amount"
+                    aria-label="Withdrawal gross amount"
+                    className="min-w-0 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                  />
+                  <button
+                    type="button"
+                    disabled={isPending || !withdrawAmount}
+                    onClick={() =>
+                      startTransition(async () => {
+                        setWithdrawMessage("");
+                        const result = await withdrawStoreBalanceAction({
+                          storeId: store.id,
+                          amount: Number(withdrawAmount),
+                        });
+                        setWithdrawMessage(
+                          result.success
+                            ? `Sent ${formatNaira(result.netAmount ?? 0)} to Paystack (gross ${formatNaira(Number(withdrawAmount))}, fee ${formatNaira(result.fee ?? 0)}).`
+                            : result.error || "Withdrawal failed."
+                        );
+                        if (result.success) {
+                          setWithdrawAmount("");
+                          router.refresh();
+                        }
+                      })
+                    }
+                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-[10px] font-black text-white disabled:opacity-50"
+                  >
+                    Withdraw
+                  </button>
                 </div>
-                <p className="mt-1 text-[10px] text-slate-500">Only settled funds can be withdrawn.</p>
+                {(() => {
+                  const gross = Number(withdrawAmount) || 0;
+                  const { fee, net } = withdrawalFeeFor(gross);
+                  return gross > 0 ? (
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      Gross {formatNaira(gross)} • 1% fee {formatNaira(fee)} (capped at{" "}
+                      {formatNaira(5000)}) • Net {formatNaira(net)}.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      1% fee (capped at {formatNaira(5000)}). Only settled funds can be withdrawn.
+                    </p>
+                  );
+                })()}
                 {withdrawMessage && <p className="mt-1 text-[10px] font-bold text-slate-700">{withdrawMessage}</p>}
               </div>
             </div>
-            {/* Multi-Store Switcher (for Admin accounts) */}
-            {allStores.length > 1 && (
+            <div className="p-4 bg-white rounded-2xl border border-slate-200 space-y-3 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-bold text-slate-600">Store access</p>
+                  <p className="text-[11px] text-slate-500">
+                    Owners verify this store password. Switch-store links are shown to admins
+                    with an active store view only.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await exitAdminStoreViewAction();
+                      router.push("/store");
+                      router.refresh();
+                    })
+                  }
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Exit admin store view
+                </button>
+              </div>
+              {storeAuthMsg && (
+                <p className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 font-bold text-emerald-800">
+                  {storeAuthMsg}
+                </p>
+              )}
+              {storeAuthError && (
+                <p className="rounded-xl bg-rose-50 border border-rose-200 px-3 py-2 font-bold text-rose-700">
+                  {storeAuthError}
+                </p>
+              )}
+              <form onSubmit={handleStoreSignIn} className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="password"
+                  value={storePassword}
+                  onChange={(e) => setStorePassword(e.target.value)}
+                  placeholder="Verify this store password"
+                  autoComplete="off"
+                  aria-label="Store password"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isPending || !storePassword}
+                  className="rounded-xl bg-slate-900 px-4 py-2 font-black text-white disabled:opacity-50"
+                >
+                  {isPending ? "Verifying…" : "Verify store password"}
+                </button>
+              </form>
+            </div>
+            {/* Multi-Store Switcher (admin store-view only; hidden for owners) */}
+            {allStores.length > 1 && customer.role === "admin" && (
               <div className="p-4 bg-white rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <span className="font-bold text-slate-600">Managing Supermarket:</span>
                 <div className="flex gap-2 flex-wrap">
@@ -742,10 +864,8 @@ export function StorePortalView({
                             <span className="block text-slate-500">{order.pickupTimeSlot}</span>
                           </div>
                           <div>
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block">4-Digit Verification PIN</span>
-                            <span className="font-mono font-black text-sm text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-md inline-block mt-0.5">
-                              {storeFulfillment?.pickupCode || order.pickupVerificationCode}
-                            </span>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Customer verification</span>
+                            <span className="text-xs font-bold text-slate-600">Enter the customer-provided code below.</span>
                           </div>
                         </div>
 
@@ -776,35 +896,62 @@ export function StorePortalView({
                                   <span className={`block text-[10px] font-bold ${item.fulfillmentStatus === "unavailable" ? "text-rose-700" : item.fulfillmentStatus === "available" ? "text-emerald-700" : "text-amber-700"}`}>
                                     {item.fulfillmentStatus || "pending review"}
                                   </span>
-                                  {item.fulfillmentStatus !== "picked_up" ? (
-                                    <div className="flex gap-1 justify-end">
-                                      {[true, false].map((available) => (
-                                        <button
-                                          key={String(available)}
-                                          type="button"
-                                          disabled={isPending}
-                                          onClick={() => startTransition(async () => {
+                                  {item.fulfillmentStatus !== "picked_up" &&
+                                    (item.fulfillmentStatus === "available" ? (
+                                      <button
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={() =>
+                                          startTransition(async () => {
                                             const result = await decideStoreOrderItemAction({
                                               orderId: order.id,
                                               storeId: store.id,
                                               productId: item.productId,
-                                              available,
+                                              available: false,
                                             });
                                             setPickupMessages((current) => ({
                                               ...current,
                                               [order.id]: result.success
-                                                ? available ? "Item confirmed available." : "Item marked unavailable; customer refund recorded."
+                                                ? "Item marked unavailable; customer refund recorded."
                                                 : result.error || "Could not update item.",
                                             }));
                                             if (result.success) router.refresh();
-                                          })}
-                                          className={`rounded-lg px-2 py-1 text-[10px] font-black text-white ${available ? "bg-emerald-600" : "bg-rose-600"} disabled:opacity-50`}
-                                        >
-                                          {available ? (item.fulfillmentStatus === "available" ? "Keep available" : "Available") : (item.fulfillmentStatus === "unavailable" ? "Keep unavailable" : "Unavailable")}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  ) : null}
+                                          })
+                                        }
+                                        aria-pressed="true"
+                                        title="Currently available — mark unavailable"
+                                        className="rounded-lg px-2 py-1 text-[10px] font-black text-white bg-emerald-600 disabled:opacity-50"
+                                      >
+                                        Available ✓
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={() =>
+                                          startTransition(async () => {
+                                            const result = await decideStoreOrderItemAction({
+                                              orderId: order.id,
+                                              storeId: store.id,
+                                              productId: item.productId,
+                                              available: true,
+                                            });
+                                            setPickupMessages((current) => ({
+                                              ...current,
+                                              [order.id]: result.success
+                                                ? "Item confirmed available."
+                                                : result.error || "Could not update item.",
+                                            }));
+                                            if (result.success) router.refresh();
+                                          })
+                                        }
+                                        aria-pressed="false"
+                                        title="Currently unavailable — mark available"
+                                        className="rounded-lg px-2 py-1 text-[10px] font-black text-white bg-slate-400 disabled:opacity-50"
+                                      >
+                                        Mark available
+                                      </button>
+                                    ))}
                                 </div>
                               </div>
                             ))}
@@ -923,6 +1070,19 @@ export function StorePortalView({
                   <form onSubmit={handlePasswordSubmit} className="space-y-3">
                     <div>
                       <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                        Current password
+                      </label>
+                      <input
+                        type="password"
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        placeholder="Enter current password"
+                        autoComplete="current-password"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 block mb-1">
                         New Password (min 6 characters)
                       </label>
                       <input
@@ -938,11 +1098,15 @@ export function StorePortalView({
 
                     <button
                       type="submit"
-                      disabled={isPending}
+                      disabled={isPending || !newPassword}
                       className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-60"
                     >
                       {isPending ? "Updating Password…" : "Update Password"}
                     </button>
+                    <p className="text-[11px] text-slate-500">
+                      First-time setup: leave the current password blank if this store has no
+                      password yet. Admins may reset without the current password.
+                    </p>
                   </form>
                 </div>
 
