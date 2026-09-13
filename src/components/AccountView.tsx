@@ -359,7 +359,7 @@ export function AccountView({
                             {formatNaira(request.amount)} → {request.bankName} •• {request.accountNumber.slice(-4)}
                           </p>
                           <p className="text-[11px] text-slate-500">
-                            Net {formatNaira(request.netAmount)} • {new Date(request.createdAt).toLocaleDateString()}
+                            Net {formatNaira(request.netAmount)} • {new Date(request.createdAt).toLocaleDateString("en-US")}
                             {request.resolvedAccountName
                               ? ` • ${request.resolvedAccountName} ${request.nameMatch ? "✓" : "✗"}`
                               : ""}

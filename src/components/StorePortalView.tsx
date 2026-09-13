@@ -650,7 +650,7 @@ export function StorePortalView({
 
             {/* TAB 1: INVENTORY */}
             {activeTab === "inventory" && (
-              <div className="space-y-6">
+              <div suppressHydrationWarning className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Live Inventory & Deals</h2>
@@ -776,7 +776,7 @@ export function StorePortalView({
 
             {/* TAB 2: ORDERS */}
             {activeTab === "orders" && (
-              <div className="space-y-6">
+              <div suppressHydrationWarning className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Supermarket Pick List & Orders</h2>
@@ -1019,7 +1019,7 @@ export function StorePortalView({
 
             {/* TAB 3: MESSAGES */}
             {activeTab === "messages" && (
-              <div className="space-y-4 max-w-2xl">
+              <div suppressHydrationWarning className="space-y-4 max-w-2xl">
                 <div>
                   <h2 className="text-xl font-black text-slate-900">Messages with Admin</h2>
                   <p className="text-xs text-slate-500">
@@ -1039,7 +1039,7 @@ export function StorePortalView({
 
             {/* TAB 4: ACCOUNT & SECURITY */}
             {activeTab === "settings" && (
-              <div className="space-y-6 max-w-xl">
+              <div suppressHydrationWarning className="space-y-6 max-w-xl">
                 <div>
                   <h2 className="text-xl font-black text-slate-900">Account Security & Settings</h2>
                   <p className="text-xs text-slate-500">

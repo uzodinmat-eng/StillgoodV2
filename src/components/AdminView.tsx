@@ -443,12 +443,8 @@ export function AdminView({
         if (!inStore) return false;
       }
       if (areaFilter && order.storeArea !== areaFilter) return false;
-      if (from && order.createdAt < new Date(from).toISOString()) return false;
-      if (to) {
-        const endOfDay = new Date(to);
-        endOfDay.setHours(23, 59, 59, 999);
-        if (order.createdAt > endOfDay.toISOString()) return false;
-      }
+      if (from && order.createdAt < `${from}T00:00:00.000Z`) return false;
+      if (to && order.createdAt > `${to}T23:59:59.999Z`) return false;
       return true;
     });
   }, [orders, storeFilter, areaFilter, from, to]);
@@ -501,20 +497,14 @@ export function AdminView({
       .sort((a, b) => b.unreadCount - a.unreadCount || a.store.name.localeCompare(b.store.name));
   }, [stores, unreadByStore]);
 
-  useEffect(() => {
-    if (activeTab !== "messages") return;
-    if (!activeThreadId && messageThreads.length > 0) {
-      // Deferred so the Messages tab badge effect stays subscription-style.
-      const timer = setTimeout(() => setActiveThreadId(messageThreads[0].store.id), 0);
-      return () => clearTimeout(timer);
-    }
-  }, [activeTab, activeThreadId, messageThreads]);
-
-  const activeThread = messageThreads.find((t) => t.store.id === activeThreadId) || null;
+  const defaultThreadId =
+    !activeThreadId && messageThreads.length > 0 ? messageThreads[0].store.id : null;
+  const resolvedThreadId = activeThreadId || defaultThreadId;
+  const activeThread = messageThreads.find((t) => t.store.id === resolvedThreadId) || null;
 
   const fetchActiveMessages = useCallback(async (): Promise<ThreadMessage[]> => {
-    if (!activeThreadId) return [];
-    const result = await getStoreThreadAction(activeThreadId);
+    if (!resolvedThreadId) return [];
+    const result = await getStoreThreadAction(resolvedThreadId);
     if (!result.success) {
       throw new Error(result.error || "Could not load messages.");
     }
@@ -524,14 +514,14 @@ export function AdminView({
       body: m.body,
       createdAt: m.createdAt,
     }));
-  }, [activeThreadId]);
+  }, [resolvedThreadId]);
 
   const sendActiveMessage = useCallback(
     async (body: string) => {
-      if (!activeThreadId) return { success: false, error: "Pick a store thread first." };
-      return sendAdminMessageAction(activeThreadId, body);
+      if (!resolvedThreadId) return { success: false, error: "Pick a store thread first." };
+      return sendAdminMessageAction(resolvedThreadId, body);
     },
-    [activeThreadId]
+    [resolvedThreadId]
   );
 
   const openThread = (storeId: string) => {
@@ -553,20 +543,13 @@ export function AdminView({
   const [history, setHistory] = useState<WalletRefundRequest[]>(decidedRefunds);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Keep the history table in sync when the server payload refreshes; applied
-  // in a microtask + length guard so the effect body itself only subscribes.
+  // Keep the history table in sync when the server payload refreshes.
   const historyKey = decidedRefunds.map((r) => r.id).join(",");
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.resolve().then(() => {
-      if (cancelled) return;
-      setHistory((current) => (current.length === decidedRefunds.length ? current : decidedRefunds));
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyKey]);
+  const [historySeed, setHistorySeed] = useState(historyKey);
+  if (historySeed !== historyKey) {
+    setHistorySeed(historyKey);
+    setHistory(decidedRefunds);
+  }
 
   const runRefundOp = (id: string, op: () => Promise<{ success: boolean; error?: string }>, okMsg: string) => {
     setRefundMsg(null);
@@ -660,13 +643,15 @@ export function AdminView({
     { label: "Commission (12%)", value: stats ? formatNaira(stats.commission) : "—" },
   ];
 
-  const tabs = [
-    { id: "analytics" as const, label: "Analytics" },
-    { id: "orders" as const, label: `Orders (${visibleOrders.length})` },
-    { id: "stores" as const, label: `Stores (${stores.length})` },
-    { id: "register" as const, label: "Register Store" },
-    { id: "messages" as const, label: "Messages", badge: unread.total },
-    { id: "refunds" as const, label: `Refunds (${pendingRefunds.length})` },
+  // Static labels only: dynamic counts live inside each section so tab clicks
+  // never remount the nav and the hydration tree stays stable.
+  const tabs: { id: "analytics" | "orders" | "stores" | "register" | "messages" | "refunds"; label: string; badge?: number }[] = [
+    { id: "analytics", label: "Analytics" },
+    { id: "orders", label: "Orders" },
+    { id: "stores", label: "Stores" },
+    { id: "register", label: "Register Store" },
+    { id: "messages", label: "Messages", badge: unread.total },
+    { id: "refunds", label: "Refunds" },
   ];
 
   return (
@@ -936,7 +921,7 @@ export function AdminView({
 
             {/* Analytics tab: KPIs + charts */}
             {activeTab === "analytics" && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+            <section suppressHydrationWarning className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <h2 className="text-sm font-black uppercase tracking-wider">
                 Analytics {from || to ? `(${from || "…"} → ${to || "…"})` : "(all time)"}
               </h2>
@@ -1014,7 +999,7 @@ export function AdminView({
             )}
 
             {activeTab === "register" && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+            <section suppressHydrationWarning className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <Plus className="w-4 h-4 text-emerald-600" />
                 <h2 className="text-sm font-black uppercase tracking-wider">
@@ -1102,7 +1087,7 @@ export function AdminView({
             )}
 
             {activeTab === "stores" && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+            <section suppressHydrationWarning className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-600" />
                 <h2 className="text-sm font-black uppercase tracking-wider">
@@ -1136,7 +1121,7 @@ export function AdminView({
             )}
 
             {activeTab === "orders" && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+            <section suppressHydrationWarning className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <ClipboardList className="w-4 h-4 text-emerald-600" />
                 <h2 className="text-sm font-black uppercase tracking-wider">
@@ -1236,7 +1221,7 @@ export function AdminView({
             )}
 
             {activeTab === "messages" && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+            <section suppressHydrationWarning className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-emerald-600" />
                 <h2 className="text-sm font-black uppercase tracking-wider">
@@ -1291,7 +1276,7 @@ export function AdminView({
             )}
 
             {activeTab === "refunds" && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6">
+            <section suppressHydrationWarning className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6">
               <h2 className="text-sm font-black uppercase tracking-wider">
                 Wallet payouts ({pendingRefunds.length} pending)
               </h2>
@@ -1338,7 +1323,7 @@ export function AdminView({
                             <tr key={refund.id} className="border-t border-slate-100">
                               <td className="py-2 px-3">
                                 <div className="font-bold text-slate-800">{refund.customerName || refund.accountName}</div>
-                                <div className="text-[10px] text-slate-400">{new Date(refund.createdAt).toLocaleString()}</div>
+                                <div className="text-[10px] text-slate-400">{new Date(refund.createdAt).toLocaleString("en-US")}</div>
                               </td>
                               <td className="py-2 pr-3 font-bold">{formatNaira(refund.amount)}</td>
                               <td className="py-2 pr-3">{formatNaira(refund.fee)}</td>
@@ -1465,7 +1450,7 @@ export function AdminView({
                               </span>
                             </td>
                             <td className="py-2 px-3 text-slate-500">
-                              {refund.decidedAt ? new Date(refund.decidedAt).toLocaleString() : "—"}
+                              {refund.decidedAt ? new Date(refund.decidedAt).toLocaleString("en-US") : "—"}
                             </td>
                           </tr>
                         ))}

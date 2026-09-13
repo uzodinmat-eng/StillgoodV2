@@ -6,7 +6,7 @@ import { DateType, DriftScheduleStep, UrgencyLevel } from "./types";
  */
 export function formatNaira(amount: number): string {
   const rounded = Math.round(amount);
-  return `₦${rounded.toLocaleString("en-NG")}`;
+  return `₦${rounded.toLocaleString("en-US")}`;
 }
 
 /**

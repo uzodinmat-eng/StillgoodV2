@@ -129,7 +129,7 @@ export function StoreMessageThread({
                   className={`mt-1 text-[11px] ${mine ? "text-emerald-100" : "text-slate-400"}`}
                 >
                   {message.senderRole === "admin" ? "Admin" : "Store"} ·{" "}
-                  {new Date(message.createdAt).toLocaleString()}
+                  {new Date(message.createdAt).toLocaleString("en-US")}
                 </p>
               </div>
             );
