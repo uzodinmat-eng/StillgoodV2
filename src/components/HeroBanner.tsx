@@ -2,12 +2,12 @@
 
 import React from "react";
 import Link from "next/link";
-import { 
-  Sparkles, 
-  TrendingDown, 
-  MapPin, 
-  ShieldCheck, 
-  Store, 
+import {
+  Sparkles,
+  TrendingDown,
+  MapPin,
+  ShieldCheck,
+  Package,
   ArrowRight,
   Bike
 } from "lucide-react";
@@ -64,11 +64,11 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
           </button>
 
           <Link
-            href="/stores"
+            href="/account"
             className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white font-bold text-xs sm:text-sm px-5 py-3.5 rounded-2xl border border-white/10 transition-all"
           >
-            <Store className="w-4 h-4 text-emerald-400" />
-            <span>View Partner Stores</span>
+            <Package className="w-4 h-4 text-emerald-400" />
+            <span>My Orders</span>
           </Link>
         </div>
 

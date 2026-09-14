@@ -72,6 +72,16 @@ export async function ensureCustomerFromUser(
     phone: customer.phone,
   });
 
+  // Running inside a request that already has a session (session refresh,
+  // auth callback, admin sign-in): adopt a guest/legacy basket or drop a
+  // foreign one so accounts never see each other's items.
+  try {
+    const { syncCartOwnershipKey } = await import("./actions");
+    await syncCartOwnershipKey(`auth:${user.id}`);
+  } catch {
+    // ignore — basket hygiene must never break auth
+  }
+
   return customer;
 }
 
@@ -142,6 +152,8 @@ export async function signUpWithEmail(data: {
 
   const customer = await ensureCustomerFromUser(authData.user, { name: data.name });
   const payload = await accountPayload(customer);
+  const { syncCartOwnershipKey } = await import("./actions");
+  await syncCartOwnershipKey(`auth:${authData.user.id}`);
   revalidatePath("/");
   revalidatePath("/account");
   revalidatePath("/admin");
@@ -175,6 +187,8 @@ export async function signInWithEmail(data: {
 
   const customer = await ensureCustomerFromUser(authData.user);
   const payload = await accountPayload(customer);
+  const { syncCartOwnershipKey } = await import("./actions");
+  await syncCartOwnershipKey(`auth:${authData.user.id}`);
   revalidatePath("/");
   revalidatePath("/account");
   revalidatePath("/admin");
@@ -190,6 +204,8 @@ export async function logout(): Promise<{ success: boolean }> {
       // ignore
     }
   }
+  const { resetCartToGuest } = await import("./actions");
+  await resetCartToGuest();
   revalidatePath("/");
   revalidatePath("/account");
   revalidatePath("/admin");

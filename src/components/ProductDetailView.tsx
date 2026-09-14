@@ -394,6 +394,7 @@ export function ProductDetailView({
           setCartDrawerOpen(false);
           setCheckoutOpen(true);
         }}
+        onCartChanged={setCartSummary}
       />
       <CheckoutModal
         isOpen={checkoutOpen}

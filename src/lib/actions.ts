@@ -25,31 +25,80 @@ import { initializePaystackTransaction } from "./paystack";
 
 const CART_COOKIE_NAME = "stillgood_cart";
 
-// Helper to safely parse cart from cookie
-async function getRawCartItems(): Promise<CartItem[]> {
+type StoredCart = { owner: string | null; items: CartItem[] };
+
+// The basket cookie is browser-local and shared across logins on one device,
+// so it carries an owner key (`guest`, `legacy`, or `auth:<supabase-user-id>`).
+// Auth transitions adopt or reset the basket instead of leaking it across accounts.
+async function readStoredCart(): Promise<StoredCart> {
   const cookieStore = await cookies();
   const cartCookie = cookieStore.get(CART_COOKIE_NAME);
-  if (!cartCookie || !cartCookie.value) return [];
+  if (!cartCookie || !cartCookie.value) return { owner: null, items: [] };
   try {
     const parsed = JSON.parse(cartCookie.value);
     if (Array.isArray(parsed)) {
-      return parsed;
+      return { owner: "legacy", items: parsed };
     }
-    return [];
+    if (parsed && Array.isArray(parsed.items)) {
+      return {
+        owner: typeof parsed.owner === "string" ? parsed.owner : null,
+        items: parsed.items,
+      };
+    }
+    return { owner: null, items: [] };
   } catch {
-    return [];
+    return { owner: null, items: [] };
   }
 }
 
-// Helper to save raw cart items to cookie
-async function saveRawCartItems(items: CartItem[]): Promise<void> {
+async function writeStoredCart(owner: string | null, items: CartItem[]): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(CART_COOKIE_NAME, JSON.stringify(items), {
+  cookieStore.set(CART_COOKIE_NAME, JSON.stringify({ owner, items }), {
     path: "/",
     httpOnly: true,
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 7, // 7 days
   });
+}
+
+// Helper to safely parse cart from cookie
+async function getRawCartItems(): Promise<CartItem[]> {
+  return (await readStoredCart()).items;
+}
+
+// Helper to save raw cart items to cookie (preserves the current owner key)
+async function saveRawCartItems(items: CartItem[]): Promise<void> {
+  const stored = await readStoredCart();
+  await writeStoredCart(stored.owner ?? "guest", items);
+}
+
+/**
+ * Reconcile the basket when the signed-in identity changes. A guest basket is
+ * adopted into the new account; a basket owned by a *different* account is
+ * discarded so one account never sees another's items. Never throws.
+ */
+export async function syncCartOwnershipKey(key: string): Promise<void> {
+  try {
+    const stored = await readStoredCart();
+    if (!stored.owner || stored.owner === "guest" || stored.owner === "legacy") {
+      await writeStoredCart(key, stored.items);
+      return;
+    }
+    if (stored.owner !== key) {
+      await writeStoredCart(key, []);
+    }
+  } catch {
+    // ignore — a stale basket must never break auth
+  }
+}
+
+/** Reset to an empty guest basket on logout. Never throws. */
+export async function resetCartToGuest(): Promise<void> {
+  try {
+    await writeStoredCart("guest", []);
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -200,6 +249,22 @@ export async function removeFromCart(
  */
 export async function clearCart(): Promise<{ success: boolean }> {
   await saveRawCartItems([]);
+  revalidatePath("/");
+  revalidatePath("/cart");
+  return { success: true };
+}
+
+/**
+ * Remove only the items belonging to a paid order from the basket.
+ * Items added after checkout started (a new basket) are preserved.
+ */
+export async function clearPaidOrderItems(productIds: string[]): Promise<{ success: boolean }> {
+  if (productIds.length === 0) return { success: true };
+  const wanted = new Set(productIds);
+  const stored = await readStoredCart();
+  const remaining = stored.items.filter((item) => !wanted.has(item.productId));
+  if (remaining.length === stored.items.length) return { success: true };
+  await writeStoredCart(stored.owner ?? "guest", remaining);
   revalidatePath("/");
   revalidatePath("/cart");
   return { success: true };
@@ -407,6 +472,8 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
 
   // Self-healing path: if the webhook is delayed or never fired, verify the
   // payment directly with Paystack when the customer opens the order page.
+  // On success the paid items leave the basket (anything added afterwards —
+  // a new basket — is preserved).
   if (order && order.status === "pending_payment") {
     const payment = await findOrderPayment(order.id);
     if (payment && payment.status === "pending") {
@@ -414,7 +481,11 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
       if (verified && verified.status === "success" && verified.currency === "NGN") {
         const naira = Math.round(verified.amount / 100);
         await markPaystackPaymentSuccessful(payment.gatewayReference, naira);
-        return findOrderById(normalized);
+        const paid = await findOrderById(normalized);
+        if (paid) {
+          await clearPaidOrderItems(paid.items.map((item) => item.productId));
+        }
+        return paid;
       }
     }
   }

@@ -330,6 +330,7 @@ export default function HomePage() {
         onClose={() => setCartDrawerOpen(false)}
         cartSummary={cartSummary}
         onProceedToCheckout={() => setCheckoutModalOpen(true)}
+        onCartChanged={setCartSummary}
       />
 
       {/* Checkout Modal */}

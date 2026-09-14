@@ -1,4 +1,6 @@
-﻿import { NextResponse } from "next/server";
+﻿import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { findOrderByPaymentReference } from "@/lib/db/orders";
 import { markPaystackPaymentSuccessful } from "@/lib/db/payments";
 import { verifyPaystackWebhook } from "@/lib/paystack";
 
@@ -12,9 +14,46 @@ export async function POST(request: Request) {
     event?: string;
     data?: { reference?: string; amount?: number; currency?: string };
   };
-  if (event.event === "charge.success" && event.data?.reference && event.data.currency === "NGN") {
-    const amountNaira = Math.round((event.data.amount || 0) / 100);
-    await markPaystackPaymentSuccessful(event.data.reference, amountNaira);
+  const data = event.data;
+  const reference = data?.reference;
+  if (event.event === "charge.success" && data && reference && data.currency === "NGN") {
+    const amountNaira = Math.round((data.amount || 0) / 100);
+    const marked = await markPaystackPaymentSuccessful(reference, amountNaira);
+    if (marked) {
+      // Best effort: drop the paid items from the buyer's basket. The webhook
+      // has no user session, so it edits the shared basket cookie — the owner
+      // reconciliation in auth keeps cross-account leakage out.
+      try {
+        const ref: string = reference;
+        const order = await findOrderByPaymentReference(ref);
+        if (order) {
+          const cookieStore = await cookies();
+          const raw = cookieStore.get("stillgood_cart")?.value;
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const items = Array.isArray(parsed) ? parsed : parsed.items;
+            if (Array.isArray(items)) {
+              const paid = new Set(order.items.map((item) => item.productId));
+              const remaining = items.filter(
+                (item: { productId?: string }) => !paid.has(item?.productId ?? "")
+              );
+              const owner =
+                !Array.isArray(parsed) && typeof parsed.owner === "string"
+                  ? parsed.owner
+                  : "guest";
+              cookieStore.set("stillgood_cart", JSON.stringify({ owner, items: remaining }), {
+                path: "/",
+                httpOnly: true,
+                sameSite: "lax",
+                maxAge: 60 * 60 * 24 * 7,
+              });
+            }
+          }
+        }
+      } catch {
+        // ignore — payment already recorded; basket cleanup is best effort
+      }
+    }
   }
   return NextResponse.json({ received: true });
 }

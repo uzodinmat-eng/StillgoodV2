@@ -300,6 +300,21 @@ export async function findOrderById(orderId: string): Promise<Order | null> {
   return order;
 }
 
+export async function findOrderByPaymentReference(reference: string): Promise<Order | null> {
+  const row = await queryOne<OrderRow>(
+    `select o.* from public.orders o
+     join public.order_payments p on p.order_id = o.id
+     where p.gateway_ref = $1
+     order by p.created_at desc
+     limit 1`,
+    [reference]
+  );
+  if (!row) return null;
+  const order = mapOrder(row, await itemsForOrder(row.id));
+  order.fulfillments = await fulfillmentsForOrder(row.id);
+  return order;
+}
+
 export async function findOrdersForCustomer(options: {
   customerId: string;
   email?: string;

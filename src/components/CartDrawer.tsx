@@ -24,6 +24,7 @@ interface CartDrawerProps {
   onClose: () => void;
   cartSummary: CartSummary;
   onProceedToCheckout: () => void;
+  onCartChanged?: (summary: CartSummary) => void;
 }
 
 export function CartDrawer({
@@ -31,6 +32,7 @@ export function CartDrawer({
   onClose,
   cartSummary,
   onProceedToCheckout,
+  onCartChanged,
 }: CartDrawerProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -38,19 +40,33 @@ export function CartDrawer({
 
   const handleUpdateQty = (productId: string, newQty: number) => {
     startTransition(async () => {
-      await updateCartQuantity(productId, newQty);
+      const result = await updateCartQuantity(productId, newQty);
+      onCartChanged?.(result.cartSummary);
     });
   };
 
   const handleRemove = (productId: string) => {
     startTransition(async () => {
-      await removeFromCart(productId);
+      const result = await removeFromCart(productId);
+      onCartChanged?.(result.cartSummary);
     });
   };
 
   const handleClear = () => {
     startTransition(async () => {
       await clearCart();
+      onCartChanged?.({
+        ...cartSummary,
+        items: [],
+        itemCount: 0,
+        subtotal: 0,
+        originalSubtotal: 0,
+        savingsTotal: 0,
+        platformFee: 0,
+        pickupFee: 0,
+        total: 0,
+        storesInvolved: [],
+      });
     });
   };
 

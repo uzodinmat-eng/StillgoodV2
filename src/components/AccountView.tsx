@@ -447,6 +447,7 @@ export function AccountView({
         onClose={() => setCartDrawerOpen(false)}
         cartSummary={cartSummary}
         onProceedToCheckout={() => setCheckoutOpen(true)}
+        onCartChanged={setCartSummary}
       />
       <CheckoutModal
         isOpen={checkoutOpen}

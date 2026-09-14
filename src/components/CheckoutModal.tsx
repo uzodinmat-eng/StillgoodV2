@@ -130,35 +130,42 @@ export function CheckoutModal({
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!sessionCustomer) {
-      setErrorMsg("Create an account or log in before placing an order so refunds can reach your wallet.");
-      setAuthOpen(true);
-      return;
-    }
-
-    if (!customerName || !customerPhone || !customerEmail) {
-      setErrorMsg("Please provide your name, phone number, and email address.");
-      return;
-    }
-
-    if (paymentMethod === "wallet") {
-      if (!sessionCustomer) {
-        setErrorMsg("Log in from the profile icon to pay with Stillgood Wallet.");
-        return;
-      }
-      if (sessionCustomer.walletBalance < cartSummary.total) {
-        setErrorMsg(
-          `Wallet balance is ${formatNaira(sessionCustomer.walletBalance)}. Choose Paystack or transfer for this order.`
-        );
-        return;
-      }
-    }
-
+    // Re-check the session at submit time: the modal may have been open while
+    // the Supabase JWT expired, and the server rejects stale submissions.
     startTransition(async () => {
+      const fresh = await getSession().catch(() => null);
+      if (!fresh) {
+        setSessionCustomer(null);
+        setErrorMsg("Your session expired. Log in again to place this order.");
+        setAuthOpen(true);
+        return;
+      }
+      setSessionCustomer(fresh);
+      setCustomerName((current) => current || fresh.name);
+      setCustomerEmail((current) => current || fresh.email);
+      setCustomerPhone((current) => current || fresh.phone);
+
+      const name = customerName || fresh.name;
+      const email = customerEmail || fresh.email;
+      const phone = customerPhone || fresh.phone;
+      if (!name || !phone || !email) {
+        setErrorMsg("Please provide your name, phone number, and email address.");
+        return;
+      }
+
+      if (paymentMethod === "wallet") {
+        if (fresh.walletBalance < cartSummary.total) {
+          setErrorMsg(
+            `Wallet balance is ${formatNaira(fresh.walletBalance)}. Choose Paystack or transfer for this order.`
+          );
+          return;
+        }
+      }
+
       const result = await createOrder({
-        customerName,
-        customerEmail,
-        customerPhone,
+        customerName: name,
+        customerEmail: email,
+        customerPhone: phone,
         storeId,
         pickupDate,
         pickupTimeSlot,
