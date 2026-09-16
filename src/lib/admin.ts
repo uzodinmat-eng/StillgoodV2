@@ -386,10 +386,12 @@ export async function listStoreProductsAction(
 
 export async function setStoreStatusAction(
   storeId: string,
-  status: StoreStatus
+  status: StoreStatus,
+  reason?: string
 ): Promise<{ success: boolean; error?: string }> {
+  let admin: Customer;
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch (error) {
     return {
       success: false,
@@ -399,6 +401,22 @@ export async function setStoreStatusAction(
 
   try {
     await updateStoreStatus(storeId, status);
+    // Deliver the decision reason as an in-app message on the store's thread.
+    const trimmed = (reason || "").trim();
+    if (trimmed) {
+      try {
+        const { sendStoreMessage } = await import("./db/messages");
+        const label = status === "approved" ? "Approved" : status === "suspended" ? "Rejected" : status;
+        await sendStoreMessage({
+          storeId,
+          senderRole: "admin",
+          senderCustomerId: admin.id,
+          body: `[${label}] ${trimmed}`,
+        });
+      } catch {
+        // Status change already applied; message delivery is best effort.
+      }
+    }
     revalidatePath("/");
     revalidatePath("/stores");
     revalidatePath("/admin");

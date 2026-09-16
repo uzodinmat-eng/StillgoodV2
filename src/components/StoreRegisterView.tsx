@@ -175,8 +175,8 @@ export function StoreRegisterView() {
                     >
                       <option value="supermarket">Supermarket</option>
                       <option value="bakery_grocery">Bakery & Grocery</option>
-                      <option value="pharmacy_mart">Pharmacy & Mart</option>
-                      <option value="mega_store">Mega Cash & Carry</option>
+                      <option value="market">Market</option>
+                      <option value="restaurant">Restaurant</option>
                     </select>
                   </div>
 

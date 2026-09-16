@@ -12,6 +12,8 @@ interface AuthModalProps {
   onClose: () => void;
   nextPath?: string;
   allowGuest?: boolean;
+  /** When false the modal is login-only: no signup toggle, no Google, no "Create account". */
+  allowSignup?: boolean;
   title?: string;
   subtitle?: string;
   onLoggedIn?: (account: {
@@ -26,6 +28,7 @@ export function AuthModal({
   onClose,
   nextPath = "/account",
   allowGuest = true,
+  allowSignup = true,
   title,
   subtitle,
   onLoggedIn,
@@ -81,7 +84,13 @@ export function AuthModal({
 
       const result = await signInWithEmail({ email, password });
       if (!result.success || !result.customer) {
-        setErrorMsg(result.error || "Could not log in.");
+        if (result.storeStatus === "pending") {
+          setErrorMsg(
+            `Admin Approval Pending${result.pendingStoreName ? ` — ${result.pendingStoreName}` : ""}. Your store registration is still under review; you will be able to log in once an admin approves it.`
+          );
+        } else {
+          setErrorMsg(result.error || "Could not log in.");
+        }
         return;
       }
       await finishLogin({
@@ -154,7 +163,7 @@ export function AuthModal({
           type="button"
           onClick={handleGoogle}
           disabled={isPending}
-          className="w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-60"
+          className={allowSignup ? "w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-60" : "hidden"}
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -177,7 +186,7 @@ export function AuthModal({
           Continue with Google
         </button>
 
-        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 ${allowSignup ? "" : "hidden"}`}>
           <span className="flex-1 h-px bg-slate-200" />
           or email
           <span className="flex-1 h-px bg-slate-200" />
@@ -248,7 +257,7 @@ export function AuthModal({
             setErrorMsg(null);
             setInfoMsg(null);
           }}
-          className="w-full text-[11px] font-bold text-slate-500 hover:text-slate-800"
+          className={allowSignup ? "w-full text-[11px] font-bold text-slate-500 hover:text-slate-800" : "hidden"}
         >
           {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Log in"}
         </button>

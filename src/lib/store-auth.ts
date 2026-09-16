@@ -74,20 +74,38 @@ export async function registerStoreAction(
 
   const supabase = await createServerSupabase();
 
-  // 1. Sign up auth user
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: ownerName,
-        business_name: businessName,
+  // 1. If this email already has an account, authenticate with the supplied
+  // password and UPGRADE that customer instead of failing with a raw
+  // signup-duplicate error. The store is then linked to the existing account.
+  let authData: { user: import("@supabase/supabase-js").User } | null = null;
+  const existingEmailCustomer = await findCustomerByEmail(email);
+  if (existingEmailCustomer) {
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (signInError || !signInData.user) {
+      return {
+        success: false,
+        error: "This email already has an account. Log in with your existing password to register the store under it.",
+      };
+    }
+    authData = { user: signInData.user };
+  } else {
+    const { data: signUpData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: ownerName,
+          business_name: businessName,
+        },
       },
-    },
-  });
-
-  if (authError) {
-    return { success: false, error: friendlyRegistrationError(authError) };
+    });
+    if (authError) {
+      return { success: false, error: friendlyRegistrationError(authError) };
+    }
+    authData = signUpData as { user: import("@supabase/supabase-js").User };
   }
 
   const user = authData.user;
@@ -163,7 +181,7 @@ export async function registerStoreAction(
   revalidatePath("/admin");
   revalidatePath("/stores");
 
-  const needsEmailConfirm = !authData.session;
+  const needsEmailConfirm = !("session" in authData && authData.session);
 
   return {
     success: true,

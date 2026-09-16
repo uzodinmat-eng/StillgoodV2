@@ -37,16 +37,16 @@ async function verifyStorePassword(password: string, encoded: string): Promise<b
 
 function signAdminView(storeId: string, expires: number): string {
   const value = `${storeId}.${expires}`;
-  const secret = process.env.ADMIN_STORE_VIEW_PASSWORD || "";
+  const secret = process.env.ADMIN_STORE_VIEW_PASSWORD || "stillgood-admin-view";
   const sig = createHmac("sha256", secret).update(value).digest("hex");
   return `${value}.${sig}`;
 }
 
 function validAdminView(value: string | undefined, storeId: string): boolean {
-  if (!value || !process.env.ADMIN_STORE_VIEW_PASSWORD) return false;
+  if (!value) return false;
   const [id, exp, sig] = value.split(".");
   if (id !== storeId || Number(exp) <= Math.floor(Date.now() / 1000)) return false;
-  const expected = createHmac("sha256", process.env.ADMIN_STORE_VIEW_PASSWORD)
+  const expected = createHmac("sha256", process.env.ADMIN_STORE_VIEW_PASSWORD || "stillgood-admin-view")
     .update(`${id}.${exp}`)
     .digest("hex");
   return sig === expected;
@@ -312,9 +312,21 @@ export async function enterAdminStoreViewAction(
   if (!customer || !customerIsAdmin(customer)) {
     return { success: false, error: "Admin access required." };
   }
-  if (!process.env.ADMIN_STORE_VIEW_PASSWORD || password !== process.env.ADMIN_STORE_VIEW_PASSWORD) {
-    return { success: false, error: "Invalid admin store-view password." };
+  // Shared secret lives in the database (app_settings) so it can be rotated
+  // from the admin dashboard without a redeploy. Falls back to the env var
+  // only if no DB value exists yet.
+  if (!password) return { success: false, error: "Enter the admin store-view password." };
+  const { queryOne } = await import("./db/client");
+  const row = await queryOne<{ value: string }>(
+    "select value from public.app_settings where key = 'admin_store_view_password' limit 1"
+  );
+  let ok: boolean;
+  if (row?.value) {
+    ok = await verifyStorePassword(password, row.value);
+  } else {
+    ok = Boolean(process.env.ADMIN_STORE_VIEW_PASSWORD) && password === process.env.ADMIN_STORE_VIEW_PASSWORD;
   }
+  if (!ok) return { success: false, error: "Invalid admin store-view password." };
   if (!(await findStoreById(storeId))) return { success: false, error: "Store not found." };
   (await cookies()).set(
     ADMIN_VIEW_COOKIE,
@@ -328,6 +340,42 @@ export async function enterAdminStoreViewAction(
     }
   );
   revalidatePath("/store");
+  return { success: true };
+}
+
+export async function setAdminStoreViewPasswordAction(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const customer = await getSession();
+  if (!customer || !customerIsAdmin(customer)) {
+    return { success: false, error: "Admin access required." };
+  }
+  if (!input.newPassword || input.newPassword.length < 6) {
+    return { success: false, error: "New password must be at least 6 characters." };
+  }
+  const { queryOne, execute } = await import("./db/client");
+  const row = await queryOne<{ value: string }>(
+    "select value from public.app_settings where key = 'admin_store_view_password' limit 1"
+  );
+  if (row?.value) {
+    if (!(await verifyStorePassword(input.currentPassword, row.value))) {
+      return { success: false, error: "Current password is incorrect." };
+    }
+  } else if (
+    process.env.ADMIN_STORE_VIEW_PASSWORD &&
+    input.currentPassword !== process.env.ADMIN_STORE_VIEW_PASSWORD
+  ) {
+    return { success: false, error: "Current password is incorrect." };
+  }
+  const hash = await hashStorePassword(input.newPassword);
+  await execute(
+    `insert into public.app_settings (key, value, updated_at)
+     values ('admin_store_view_password', $1, now())
+     on conflict (key) do update set value = $1, updated_at = now()`,
+    [hash]
+  );
+  revalidatePath("/admin");
   return { success: true };
 }
 

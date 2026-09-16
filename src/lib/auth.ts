@@ -168,6 +168,8 @@ export async function signInWithEmail(data: {
   customer?: Customer;
   orders?: Order[];
   savingsTotal?: number;
+  storeStatus?: "pending" | "approved" | "suspended";
+  pendingStoreName?: string;
   error?: string;
 }> {
   const email = data.email.trim().toLowerCase();
@@ -186,6 +188,30 @@ export async function signInWithEmail(data: {
   }
 
   const customer = await ensureCustomerFromUser(authData.user);
+
+  // Store owners whose store is still awaiting review get a clear message at
+  // login time instead of a confusing "invalid credentials"-style failure.
+  if (customer.role === "store_owner") {
+    const { findStoreByOwnerId, findStoreById } = await import("./db/stores");
+    const linkedStore = customer.storeId
+      ? await findStoreById(customer.storeId)
+      : await findStoreByOwnerId(customer.id);
+    if (linkedStore && linkedStore.status === "pending") {
+      // Sign back out: the session must not linger for an unapproved store.
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // ignore
+      }
+      return {
+        success: false,
+        storeStatus: "pending",
+        pendingStoreName: linkedStore.name,
+        error: "Admin Approval Pending",
+      };
+    }
+  }
+
   const payload = await accountPayload(customer);
   const { syncCartOwnershipKey } = await import("./actions");
   await syncCartOwnershipKey(`auth:${authData.user.id}`);

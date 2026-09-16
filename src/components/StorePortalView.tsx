@@ -1334,14 +1334,15 @@ export function StorePortalView({
         </div>
       )}
 
-      {/* Auth Modal for Store Login */}
+      {/* Auth Modal for Store Login — login only; signup happens at /store/register */}
       <AuthModal
         isOpen={authOpen}
         onClose={() => setAuthOpen(false)}
         nextPath="/store"
         allowGuest={false}
+        allowSignup={false}
         title="Store Portal Login"
-        subtitle="Sign in with your supermarket owner or manager account."
+        subtitle="Sign in with your supermarket owner or manager account. New store? Register it first — the link below the login button."
         onLoggedIn={async () => {
           setAuthOpen(false);
           router.refresh();

@@ -32,7 +32,7 @@ import {
 } from "@/lib/admin";
 import {
   enterAdminStoreViewAction,
-  exitAdminStoreViewAction,
+  setAdminStoreViewPasswordAction,
 } from "@/lib/store";
 import { logout } from "@/lib/auth";
 import { formatNaira } from "@/lib/pricing";
@@ -328,6 +328,8 @@ export function AdminView({
   const [storeViewPassword, setStoreViewPassword] = useState("");
   const [storeViewMsg, setStoreViewMsg] = useState<string | null>(null);
   const [storeViewError, setStoreViewError] = useState<string | null>(null);
+  // Per-store decision reason for pending approval Approve/Reject buttons.
+  const [decisionReasons, setDecisionReasons] = useState<Record<string, string>>({});
 
   // Filter bar state, seeded from the URL search params the page received.
   const [from, setFrom] = useState(filters.from || "");
@@ -380,13 +382,28 @@ export function AdminView({
     });
   };
 
-  const handleExitStoreView = () => {
-    setStoreViewMsg(null);
-    setStoreViewError(null);
+  // Shared admin store-view secret rotation (lives in app_settings, not env).
+  const [viewPasswordCurrent, setViewPasswordCurrent] = useState("");
+  const [viewPasswordNew, setViewPasswordNew] = useState("");
+  const [viewPasswordMsg, setViewPasswordMsg] = useState<string | null>(null);
+  const [viewPasswordError, setViewPasswordError] = useState<string | null>(null);
+
+  const handleRotateStoreViewPassword = (event: React.FormEvent) => {
+    event.preventDefault();
+    setViewPasswordMsg(null);
+    setViewPasswordError(null);
     startTransition(async () => {
-      await exitAdminStoreViewAction();
-      setStoreViewMsg("Admin store view cleared.");
-      router.refresh();
+      const result = await setAdminStoreViewPasswordAction({
+        currentPassword: viewPasswordCurrent,
+        newPassword: viewPasswordNew,
+      });
+      if (!result.success) {
+        setViewPasswordError(result.error || "Could not update the store-view password.");
+        return;
+      }
+      setViewPasswordMsg("Store-view password updated. Use it for every store.");
+      setViewPasswordCurrent("");
+      setViewPasswordNew("");
     });
   };
 
@@ -414,16 +431,20 @@ export function AdminView({
     });
   };
 
-  const handleStatusChange = (storeId: string, newStatus: StoreStatus) => {
+  const handleStatusChange = (storeId: string, newStatus: StoreStatus, reason?: string) => {
     setErrorMsg(null);
     setInfoMsg(null);
     startTransition(async () => {
-      const res = await setStoreStatusAction(storeId, newStatus);
+      const res = await setStoreStatusAction(storeId, newStatus, reason);
       if (!res.success) {
         setErrorMsg(res.error || "Failed to update store status.");
         return;
       }
-      setInfoMsg(`Store status updated to ${newStatus}.`);
+      setInfoMsg(
+        reason?.trim()
+          ? `Store ${newStatus}. Reason sent to the store's Messages thread.`
+          : `Store status updated to ${newStatus}.`
+      );
       router.refresh();
     });
   };
@@ -699,18 +720,13 @@ export function AdminView({
             <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-black uppercase tracking-wider">Switch to store view</h2>
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={handleExitStoreView}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-[11px] font-bold disabled:opacity-50"
-                >
-                  Exit store view
-                </button>
+                <span className="text-[11px] text-slate-400 font-semibold">
+                  Exit is available inside the store portal after opening.
+                </span>
               </div>
               <p className="text-xs text-slate-500">
                 Admin-only. Pick a store, enter the shared store-view password, then open that
-                store portal. The password is checked server-side and is never stored here.
+                store portal. The same password works for every store and can be rotated below.
               </p>
               {storeViewMsg && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
@@ -757,6 +773,47 @@ export function AdminView({
                   {isPending ? "Opening…" : "Open store view"}
                 </button>
               </div>
+
+              <form
+                onSubmit={handleRotateStoreViewPassword}
+                className="mt-2 pt-3 border-t border-slate-100 grid sm:grid-cols-[1fr_1fr_auto] gap-2 items-end"
+              >
+                <label className="text-[11px] font-bold text-slate-500 space-y-1">
+                  <span>Current store-view password</span>
+                  <input
+                    type="password"
+                    value={viewPasswordCurrent}
+                    onChange={(e) => setViewPasswordCurrent(e.target.value)}
+                    autoComplete="off"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                  />
+                </label>
+                <label className="text-[11px] font-bold text-slate-500 space-y-1">
+                  <span>New password (min 6 chars)</span>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={viewPasswordNew}
+                    onChange={(e) => setViewPasswordNew(e.target.value)}
+                    autoComplete="new-password"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={isPending || !viewPasswordNew}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold disabled:opacity-50"
+                >
+                  {isPending ? "Updating…" : "Rotate password"}
+                </button>
+                {viewPasswordMsg && (
+                  <p className="sm:col-span-3 text-[11px] font-bold text-emerald-700">{viewPasswordMsg}</p>
+                )}
+                {viewPasswordError && (
+                  <p className="sm:col-span-3 text-[11px] font-bold text-rose-600">{viewPasswordError}</p>
+                )}
+              </form>
             </section>
 
             {/* Pending Store Approvals Section */}
@@ -789,7 +846,7 @@ export function AdminView({
                     </thead>
                     <tbody>
                       {pendingStores.map((s) => (
-                        <tr key={s.id} className="border-t border-amber-200/60">
+                        <tr key={s.id} className="border-t border-amber-200/60 align-top">
                           <td className="py-3 pr-3 font-bold text-slate-900">
                             <div>{s.name}</div>
                             <div className="text-[11px] font-normal text-slate-500">{s.address}</div>
@@ -800,23 +857,38 @@ export function AdminView({
                             <div className="text-[10px] uppercase text-slate-400 font-semibold">{s.storeType}</div>
                           </td>
                           <td className="py-3 pr-3 text-slate-700">{s.phone}</td>
-                          <td className="py-3 text-right space-x-2">
-                            <button
-                              type="button"
-                              disabled={isPending}
-                              onClick={() => handleStatusChange(s.id, "approved")}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs cursor-pointer disabled:opacity-50"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isPending}
-                              onClick={() => handleStatusChange(s.id, "suspended")}
-                              className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-rose-600 font-bold text-[11px] cursor-pointer disabled:opacity-50"
-                            >
-                              Reject
-                            </button>
+                          <td className="py-3 text-right space-y-2">
+                            <input
+                              type="text"
+                              value={decisionReasons[s.id] || ""}
+                              onChange={(e) =>
+                                setDecisionReasons((current) => ({
+                                  ...current,
+                                  [s.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Reason (sent to store Messages)"
+                              maxLength={300}
+                              className="w-full min-w-56 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 focus:border-amber-500 focus:outline-none"
+                            />
+                            <div className="space-x-2">
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => handleStatusChange(s.id, "approved", decisionReasons[s.id])}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs cursor-pointer disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => handleStatusChange(s.id, "suspended", decisionReasons[s.id])}
+                                className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-rose-50 hover:border-rose-200 text-rose-600 font-bold text-[11px] cursor-pointer disabled:opacity-50"
+                              >
+                                Reject
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
