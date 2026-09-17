@@ -163,7 +163,7 @@ export function AuthModal({
           type="button"
           onClick={handleGoogle}
           disabled={isPending}
-          className={allowSignup ? "w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-60" : "hidden"}
+          className="w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center justify-center gap-2 disabled:opacity-60"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -190,9 +190,7 @@ export function AuthModal({
           <span className="flex-1 h-px bg-slate-200" />
           or email
           <span className="flex-1 h-px bg-slate-200" />
-        </div>
-
-        <form onSubmit={handleEmailSubmit} className="space-y-3">
+        </div>        <form onSubmit={handleEmailSubmit} className="space-y-3">
           {mode === "signup" && (
             <div>
               <label className="text-[11px] font-bold text-slate-500 block mb-1">
