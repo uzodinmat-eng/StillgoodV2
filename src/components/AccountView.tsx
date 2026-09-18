@@ -17,6 +17,7 @@ import { Navbar } from "@/components/Navbar";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { AuthModal } from "@/components/AuthModal";
+import { notifySessionChanged } from "@/components/SessionProvider";
 import { logout } from "@/lib/auth";
 import { getCart } from "@/lib/actions";
 import {
@@ -163,6 +164,7 @@ export function AccountView({
       );
       setPayoutAmount("");
       setPayoutAccountNumber("");
+      notifySessionChanged();
       router.refresh();
     });
   };
@@ -173,7 +175,6 @@ export function AccountView({
         cartItemCount={cartSummary.itemCount}
         cartSubtotal={cartSummary.subtotal}
         onOpenCart={() => setCartDrawerOpen(true)}
-        walletBalance={customer?.walletBalance || 0}
       />
 
       <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex-1 space-y-6">

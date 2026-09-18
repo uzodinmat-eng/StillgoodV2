@@ -60,8 +60,12 @@ export type ProductListingInput = {
   description: string;
   unit: string;
   images: string[];
-  originalPrice: number;
-  baseDiscountPercent: number;
+  /** Optional: original shelf price before markdown. */
+  originalPrice?: number | null;
+  /** Optional: markdown %, only meaningful together with originalPrice. */
+  baseDiscountPercent?: number | null;
+  /** Mandatory: the price the customer pays today. */
+  currentPrice: number;
   dateType: DateType;
   expiryDate: string;
   stockQuantity: number;
@@ -183,11 +187,27 @@ export async function createProductAction(
 
     if (!input.name.trim()) return { success: false, error: "Enter item name." };
     if (!input.category) return { success: false, error: "Select a category." };
-    if (input.originalPrice <= 0) return { success: false, error: "Original price must be greater than 0." };
-    if (input.baseDiscountPercent < 0 || input.baseDiscountPercent > 95) {
+    if (!input.images || input.images.length === 0) {
+      return { success: false, error: "Add at least one product photo before publishing." };
+    }
+    if (!input.currentPrice || input.currentPrice <= 0) {
+      return { success: false, error: "Enter the current selling price." };
+    }
+    const hasOriginal = (input.originalPrice ?? 0) > 0;
+    if (hasOriginal && (input.baseDiscountPercent ?? 0) < 0) {
+      return { success: false, error: "Discount cannot be negative." };
+    }
+    if (hasOriginal && (input.baseDiscountPercent ?? 0) > 95) {
       return { success: false, error: "Discount must be between 0% and 95%." };
     }
-    if (!input.expiryDate) return { success: false, error: "Select expiry / best-before date." };
+    if (input.expiryDate) {
+      const expiry = new Date(`${input.expiryDate}T23:59:59`);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (!Number.isNaN(expiry.getTime()) && expiry < today) {
+        return { success: false, error: "Expiry date has already passed." };
+      }
+    }
     if (input.stockQuantity < 0) return { success: false, error: "Stock quantity cannot be negative." };
 
     const product = await insertProduct({
@@ -198,8 +218,9 @@ export async function createProductAction(
       description: input.description,
       unit: input.unit,
       images: input.images,
-      originalPrice: input.originalPrice,
-      baseDiscountPercent: input.baseDiscountPercent,
+      originalPrice: input.originalPrice ?? null,
+      baseDiscountPercent: input.baseDiscountPercent ?? null,
+      currentPrice: input.currentPrice,
       dateType: input.dateType,
       expiryDate: input.expiryDate,
       stockQuantity: input.stockQuantity,
@@ -233,6 +254,13 @@ export async function updateProductAction(
 
     await getAuthorizedStore(existing.storeId);
 
+    if (input.images !== undefined && (!input.images || input.images.length === 0)) {
+      return { success: false, error: "Add at least one product photo before saving." };
+    }
+    if (input.currentPrice !== undefined && input.currentPrice <= 0) {
+      return { success: false, error: "Enter the current selling price." };
+    }
+
     const updated = await updateProduct(productId, {
       name: input.name,
       brand: input.brand,
@@ -240,8 +268,9 @@ export async function updateProductAction(
       description: input.description,
       unit: input.unit,
       images: input.images,
-      originalPrice: input.originalPrice,
-      baseDiscountPercent: input.baseDiscountPercent,
+      originalPrice: input.originalPrice ?? null,
+      baseDiscountPercent: input.baseDiscountPercent ?? null,
+      currentPrice: input.currentPrice,
       dateType: input.dateType,
       expiryDate: input.expiryDate,
       stockQuantity: input.stockQuantity,
@@ -273,6 +302,9 @@ export async function decideStoreOrderItemAction(input: { orderId: string; store
     const order = await decideStoreOrderItem({ ...input, storeId: store.id });
     if (!order) return { success: false, error: "Order item could not be updated." };
     revalidatePath("/store"); revalidatePath(`/order/${order.id}`);
+    // An unavailable decision moves money into the customer's wallet; the
+    // navbar wallet pill must reflect it without a manual page visit.
+    revalidatePath("/", "layout");
     return { success: true, order };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Could not update item." };

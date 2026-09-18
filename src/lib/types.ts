@@ -1,5 +1,7 @@
 export type DateType = "best_before" | "use_by" | "expiry";
 
+export type PaymentMethod = "paystack" | "wallet";
+
 export type UrgencyLevel = "critical" | "urgent" | "moderate" | "safe";
 
 export interface StoreReview {
@@ -95,12 +97,14 @@ export interface Product {
   unit: string;
   images: string[];
   
-  // Pricing
+  // Pricing. Original shelf price and base markdown are optional for
+  // stores that just want to list a current selling price; when absent
+  // the drift engine treats the current price as the floor reference.
   originalPrice: number;
   baseDiscountPercent: number;
   currentPrice: number;
   discountPercent: number;
-  
+
   // Expiry & Dynamic Decay
   dateType: DateType;
   expiryDate: string; // YYYY-MM-DD
@@ -220,7 +224,7 @@ export interface Order {
   total: number;
   
   status: OrderStatus;
-  paymentMethod: "paystack" | "flutterwave" | "bank_transfer" | "wallet";
+  paymentMethod: PaymentMethod;
   paymentReference: string;
   pickupDate: string;
   pickupTimeSlot: string;

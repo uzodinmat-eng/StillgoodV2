@@ -98,14 +98,22 @@ export function DriftPricingModal({
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
               <p className="text-[11px] font-bold text-slate-400 uppercase">
-                Original Retail Price
+                {product.originalPrice > 0 ? "Original Retail Price" : "Current Price"}
               </p>
-              <p className="text-sm font-bold text-slate-500 line-through mt-0.5">
-                {formatNaira(product.originalPrice)}
-              </p>
-              <p className="text-xs font-black text-emerald-700 mt-1">
-                Now {formatNaira(product.currentPrice)} (-{product.discountPercent}%)
-              </p>
+              {product.originalPrice > 0 ? (
+                <>
+                  <p className="text-sm font-bold text-slate-500 line-through mt-0.5">
+                    {formatNaira(product.originalPrice)}
+                  </p>
+                  <p className="text-xs font-black text-emerald-700 mt-1">
+                    Now {formatNaira(product.currentPrice)} (-{product.discountPercent}%)
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm font-black text-slate-900 mt-0.5">
+                  {formatNaira(product.currentPrice)}
+                </p>
+              )}
             </div>
           </div>
 

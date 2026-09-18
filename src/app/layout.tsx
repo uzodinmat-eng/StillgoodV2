@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { CatalogProvider } from "@/components/CatalogProvider";
+import { SessionProvider } from "@/components/SessionProvider";
 import { loadCatalog } from "@/lib/db/catalog";
 import "./globals.css";
 
@@ -41,7 +42,9 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased selection:bg-emerald-500 selection:text-white`}>
       <body className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-        <CatalogProvider catalog={catalog}>{children}</CatalogProvider>
+        <CatalogProvider catalog={catalog}>
+          <SessionProvider>{children}</SessionProvider>
+        </CatalogProvider>
       </body>
     </html>
   );

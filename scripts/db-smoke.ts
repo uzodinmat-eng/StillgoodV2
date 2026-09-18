@@ -93,6 +93,8 @@ async function main() {
       category: "cat_pantry",
       description: "Freshly listed flour",
       unit: "1kg",
+      images: ["https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80"],
+      currentPrice: 2100,
       originalPrice: 3000,
       baseDiscountPercent: 30,
       dateType: "best_before",

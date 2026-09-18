@@ -234,17 +234,21 @@ export function SearchAutocomplete({
                           </div>
 
                           <div className="text-right shrink-0 ml-3">
-                            <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 text-[11px] font-extrabold px-1.5 py-0.5 rounded-md border border-emerald-200">
-                              <TrendingDown className="w-3 h-3" />
-                              -{product.discountPercent}%
-                            </span>
+                            {product.originalPrice > product.currentPrice && (
+                              <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 text-[11px] font-extrabold px-1.5 py-0.5 rounded-md border border-emerald-200">
+                                <TrendingDown className="w-3 h-3" />
+                                -{product.discountPercent}%
+                              </span>
+                            )}
                             <div className="mt-0.5 flex items-baseline justify-end gap-1.5">
                               <span className="text-xs font-black text-slate-900">
                                 {formatNaira(product.currentPrice)}
                               </span>
-                              <span className="text-[10px] text-slate-400 line-through">
-                                {formatNaira(product.originalPrice)}
-                              </span>
+                              {product.originalPrice > product.currentPrice && (
+                                <span className="text-[10px] text-slate-400 line-through">
+                                  {formatNaira(product.originalPrice)}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </Link>

@@ -16,8 +16,9 @@ interface ProductRow {
   description: string;
   unit: string;
   images: string[] | null;
-  original_price: number | string;
-  base_discount_percent: number | string;
+  original_price: number | string | null;
+  base_discount_percent: number | string | null;
+  current_price: number | string | null;
   date_type: string;
   expiry_date: Date | string;
   listed_at: Date | string;
@@ -31,7 +32,7 @@ interface ProductRow {
 }
 
 const PRODUCT_COLUMNS = `id, name, brand, slug, category_id, store_id, description, unit,
-  images, original_price, base_discount_percent, date_type,
+  images, original_price, base_discount_percent, current_price, date_type,
   expiry_date, listed_at, drift_rate_weekly, stock_quantity,
   featured, storage_condition, nafdac_reg_no, condition_notes,
   nutritional_highlights`;
@@ -46,24 +47,42 @@ function asDateType(value: string): DateType {
 export function hydrateProductRow(row: ProductRow): Product {
   const expiryDate = dateOnly(row.expiry_date);
   const listedAt = dateOnly(row.listed_at);
-  const originalPrice = asInt(row.original_price);
-  const baseDiscountPercent = Number(row.base_discount_percent);
+  const originalPrice = row.original_price === null ? null : asInt(row.original_price);
+  const baseDiscountPercent = row.base_discount_percent === null
+    ? null
+    : Number(row.base_discount_percent);
+  const manualCurrentPrice = row.current_price === null ? null : asInt(row.current_price);
   const driftRateWeekly = Number(row.drift_rate_weekly) || 0.025;
   const stockQuantity = asInt(row.stock_quantity);
   const daysRemaining = getDaysRemaining(expiryDate);
-  const driftResult = calculateDriftPrice({
-    originalPrice,
-    baseDiscountPercent,
-    listedAt,
-    weeklyDriftRate: driftRateWeekly,
-  });
-  const driftSchedule = generateDriftSchedule({
-    originalPrice,
-    baseDiscountPercent,
-    listedAt,
-    expiryDate,
-    weeklyDriftRate: driftRateWeekly,
-  });
+
+  // When the store supplied a current price directly (no original price),
+  // that price is authoritative and no drift/markdown model applies.
+  const hasOriginal = originalPrice !== null && originalPrice > 0;
+  const currentPrice = hasOriginal
+    ? calculateDriftPrice({
+        originalPrice: originalPrice as number,
+        baseDiscountPercent: baseDiscountPercent ?? 0,
+        listedAt,
+        weeklyDriftRate: driftRateWeekly,
+      }).currentPrice
+    : Math.max(0, manualCurrentPrice ?? 0);
+
+  const discountPercent = hasOriginal
+    ? Math.round(
+        (((originalPrice as number) - currentPrice) / (originalPrice as number)) * 1000
+      ) / 10
+    : 0;
+
+  const driftSchedule = hasOriginal
+    ? generateDriftSchedule({
+        originalPrice: originalPrice as number,
+        baseDiscountPercent: baseDiscountPercent ?? 0,
+        listedAt,
+        expiryDate,
+        weeklyDriftRate: driftRateWeekly,
+      })
+    : [];
 
   return {
     id: row.id,
@@ -75,10 +94,10 @@ export function hydrateProductRow(row: ProductRow): Product {
     description: row.description,
     unit: row.unit,
     images: Array.isArray(row.images) ? row.images : [],
-    originalPrice,
-    baseDiscountPercent,
-    currentPrice: driftResult.currentPrice,
-    discountPercent: driftResult.totalDiscountPercent,
+    originalPrice: originalPrice ?? 0,
+    baseDiscountPercent: baseDiscountPercent ?? 0,
+    currentPrice,
+    discountPercent,
     dateType: asDateType(row.date_type),
     expiryDate,
     daysRemaining,
@@ -142,8 +161,9 @@ export async function insertProduct(input: {
   description: string;
   unit: string;
   images?: string[];
-  originalPrice: number;
-  baseDiscountPercent: number;
+  originalPrice?: number | null;
+  baseDiscountPercent?: number | null;
+  currentPrice: number;
   dateType: DateType;
   expiryDate: string;
   listedAt?: string;
@@ -159,23 +179,25 @@ export async function insertProduct(input: {
   }
   const id = `sg_prod_${String(Date.now()).slice(-6)}_${Math.random().toString(36).substring(2, 5)}`;
   const listedAt = input.listedAt || new Date().toISOString().slice(0, 10);
-  const images = input.images && input.images.length > 0
-    ? input.images
-    : ["https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80"];
+  if (!input.images || input.images.length === 0) {
+    throw new Error("Add at least one product photo before publishing.");
+  }
+  const images = input.images;
+  const hasOriginal = (input.originalPrice ?? 0) > 0;
 
   await execute(
     `insert into public.products (
         id, name, brand, slug, category_id, store_id, description, unit,
-        images, original_price, base_discount_percent, date_type,
+        images, original_price, base_discount_percent, current_price, date_type,
         expiry_date, listed_at, drift_rate_weekly, stock_quantity,
         featured, storage_condition, nafdac_reg_no, condition_notes,
         nutritional_highlights, created_at, updated_at
       ) values (
         $1, $2, $3, $4, $5, $6, $7, $8,
-        $9::text[], $10, $11, $12,
-        $13, $14, 0.025, $15,
-        false, $16, $17, $18,
-        $19::text[], now(), now()
+        $9::text[], $10, $11, $12, $13,
+        $14, $15, 0.025, $16,
+        false, $17, $18, $19,
+        $20::text[], now(), now()
       )`,
     [
       id,
@@ -187,8 +209,9 @@ export async function insertProduct(input: {
       input.description.trim(),
       input.unit.trim(),
       images,
-      input.originalPrice,
-      input.baseDiscountPercent,
+      hasOriginal ? input.originalPrice : null,
+      hasOriginal ? input.baseDiscountPercent : null,
+      Math.max(0, Math.round(input.currentPrice)),
       input.dateType,
       input.expiryDate,
       listedAt,
@@ -214,8 +237,9 @@ export async function updateProduct(
     description?: string;
     unit?: string;
     images?: string[];
-    originalPrice?: number;
-    baseDiscountPercent?: number;
+    originalPrice?: number | null;
+    baseDiscountPercent?: number | null;
+    currentPrice?: number;
     dateType?: DateType;
     expiryDate?: string;
     stockQuantity?: number;
@@ -235,14 +259,15 @@ export async function updateProduct(
          description = coalesce($5, description),
          unit = coalesce($6, unit),
          images = coalesce($7::text[], images),
-         original_price = coalesce($8, original_price),
-         base_discount_percent = coalesce($9, base_discount_percent),
-         date_type = coalesce($10, date_type),
-         expiry_date = coalesce($11, expiry_date),
-         stock_quantity = coalesce($12, stock_quantity),
-         storage_condition = coalesce($13, storage_condition),
-         nafdac_reg_no = coalesce($14, nafdac_reg_no),
-         condition_notes = coalesce($15, condition_notes),
+         original_price = $8,
+         base_discount_percent = $9,
+         current_price = coalesce($10, current_price),
+         date_type = coalesce($11, date_type),
+         expiry_date = coalesce($12, expiry_date),
+         stock_quantity = coalesce($13, stock_quantity),
+         storage_condition = coalesce($14, storage_condition),
+         nafdac_reg_no = coalesce($15, nafdac_reg_no),
+         condition_notes = coalesce($16, condition_notes),
          updated_at = now()
      where id = $1`,
     [
@@ -253,8 +278,15 @@ export async function updateProduct(
       input.description?.trim() || null,
       input.unit?.trim() || null,
       input.images && input.images.length > 0 ? input.images : null,
-      input.originalPrice !== undefined ? input.originalPrice : null,
-      input.baseDiscountPercent !== undefined ? input.baseDiscountPercent : null,
+      input.originalPrice !== undefined
+        ? ((input.originalPrice ?? 0) > 0 ? input.originalPrice : null)
+        : (current.originalPrice > 0 ? current.originalPrice : null),
+      input.baseDiscountPercent !== undefined
+        ? ((input.originalPrice ?? 0) > 0 ? input.baseDiscountPercent : null)
+        : (current.originalPrice > 0 ? current.baseDiscountPercent : null),
+      input.currentPrice !== undefined
+        ? Math.max(0, Math.round(input.currentPrice))
+        : null,
       input.dateType || null,
       input.expiryDate || null,
       input.stockQuantity !== undefined ? input.stockQuantity : null,

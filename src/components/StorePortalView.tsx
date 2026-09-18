@@ -82,8 +82,9 @@ export function StorePortalView({
   const [category, setCategory] = useState(categories[0]?.id || "");
   const [description, setDescription] = useState("");
   const [unit, setUnit] = useState("1 unit");
-  const [originalPrice, setOriginalPrice] = useState<number>(1000);
-  const [baseDiscountPercent, setBaseDiscountPercent] = useState<number>(35);
+  const [currentPrice, setCurrentPrice] = useState<number>(1000);
+  const [originalPrice, setOriginalPrice] = useState<number | "">(1000);
+  const [baseDiscountPercent, setBaseDiscountPercent] = useState<number | "">(35);
   const [dateType, setDateType] = useState<DateType>("best_before");
   const [expiryDate, setExpiryDate] = useState("");
   const [stockQuantity, setStockQuantity] = useState<number>(5);
@@ -117,8 +118,9 @@ export function StorePortalView({
     setCategory(categories[0]?.id || "");
     setDescription("");
     setUnit("1 unit");
-    setOriginalPrice(1000);
-    setBaseDiscountPercent(35);
+    setCurrentPrice(1000);
+    setOriginalPrice("");
+    setBaseDiscountPercent("");
     setDateType("best_before");
     setExpiryDate(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
     setStockQuantity(5);
@@ -142,8 +144,9 @@ export function StorePortalView({
     setCategory(p.category);
     setDescription(p.description);
     setUnit(p.unit);
-    setOriginalPrice(p.originalPrice);
-    setBaseDiscountPercent(p.baseDiscountPercent);
+    setCurrentPrice(p.currentPrice);
+    setOriginalPrice(p.originalPrice > 0 ? p.originalPrice : "");
+    setBaseDiscountPercent(p.originalPrice > 0 ? p.baseDiscountPercent : "");
     setDateType(p.dateType);
     setExpiryDate(p.expiryDate);
     setStockQuantity(p.stockQuantity);
@@ -162,6 +165,31 @@ export function StorePortalView({
     setFormError(null);
     setFormSuccess(null);
 
+    // Photos are mandatory: block submission inline before hitting the server.
+    if (!images || images.length === 0) {
+      setFormError("Add at least one product photo before publishing.");
+      return;
+    }
+    if (!currentPrice || currentPrice <= 0) {
+      setFormError("Enter the current selling price.");
+      return;
+    }
+    if (originalPrice !== "" && originalPrice <= 0) {
+      setFormError("Original shelf price must be empty or greater than 0.");
+      return;
+    }
+    if (baseDiscountPercent !== "" && (baseDiscountPercent < 0 || baseDiscountPercent > 95)) {
+      setFormError("Markdown must be between 0% and 95%.");
+      return;
+    }
+
+    // Optional pricing: empty fields mean "no original shelf price".
+    const pricePatch = {
+      currentPrice,
+      originalPrice: originalPrice === "" ? null : originalPrice,
+      baseDiscountPercent: baseDiscountPercent === "" ? null : baseDiscountPercent,
+    };
+
     startTransition(async () => {
       if (editingProduct) {
         const res = await updateProductAction(editingProduct.id, {
@@ -171,8 +199,7 @@ export function StorePortalView({
           description,
           unit,
           images,
-          originalPrice,
-          baseDiscountPercent,
+          ...pricePatch,
           dateType,
           expiryDate,
           stockQuantity,
@@ -194,8 +221,7 @@ export function StorePortalView({
           description,
           unit,
           images,
-          originalPrice,
-          baseDiscountPercent,
+          ...pricePatch,
           dateType,
           expiryDate,
           stockQuantity,
@@ -661,9 +687,11 @@ export function StorePortalView({
                               </td>
                               <td className="py-3 px-3">
                                 <p className="font-black text-slate-900">{formatNaira(p.currentPrice)}</p>
-                                <p className="text-[10px] text-slate-400 line-through">
-                                  {formatNaira(p.originalPrice)} (-{p.discountPercent}%)
-                                </p>
+                                {p.originalPrice > 0 && (
+                                  <p className="text-[10px] text-slate-400 line-through">
+                                    {formatNaira(p.originalPrice)} (-{p.discountPercent}%)
+                                  </p>
+                                )}
                               </td>
                               <td className="py-3 px-3 font-semibold">
                                 <span
@@ -825,62 +853,30 @@ export function StorePortalView({
                                   <span className={`block text-[10px] font-bold ${item.fulfillmentStatus === "unavailable" ? "text-rose-700" : item.fulfillmentStatus === "available" ? "text-emerald-700" : "text-amber-700"}`}>
                                     {item.fulfillmentStatus || "pending review"}
                                   </span>
-                                  {item.fulfillmentStatus !== "picked_up" &&
-                                    (item.fulfillmentStatus === "available" ? (
-                                      <button
-                                        type="button"
-                                        disabled={isPending}
-                                        onClick={() =>
-                                          startTransition(async () => {
-                                            const result = await decideStoreOrderItemAction({
-                                              orderId: order.id,
-                                              storeId: store.id,
-                                              productId: item.productId,
-                                              available: false,
-                                            });
-                                            setPickupMessages((current) => ({
-                                              ...current,
-                                              [order.id]: result.success
-                                                ? "Item marked unavailable; customer refund recorded."
-                                                : result.error || "Could not update item.",
-                                            }));
-                                            if (result.success) router.refresh();
-                                          })
-                                        }
-                                        aria-pressed="true"
-                                        title="Currently available — mark unavailable"
-                                        className="rounded-lg px-2 py-1 text-[10px] font-black text-white bg-emerald-600 disabled:opacity-50"
-                                      >
-                                        Available ✓
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        disabled={isPending}
-                                        onClick={() =>
-                                          startTransition(async () => {
-                                            const result = await decideStoreOrderItemAction({
-                                              orderId: order.id,
-                                              storeId: store.id,
-                                              productId: item.productId,
-                                              available: true,
-                                            });
-                                            setPickupMessages((current) => ({
-                                              ...current,
-                                              [order.id]: result.success
+                                  {item.fulfillmentStatus !== "picked_up" && (
+                                    <AvailabilityToggle
+                                      status={item.fulfillmentStatus || "pending"}
+                                      onDecide={(available) =>
+                                        startTransition(async () => {
+                                          const result = await decideStoreOrderItemAction({
+                                            orderId: order.id,
+                                            storeId: store.id,
+                                            productId: item.productId,
+                                            available,
+                                          });
+                                          setPickupMessages((current) => ({
+                                            ...current,
+                                            [order.id]: result.success
+                                              ? available
                                                 ? "Item confirmed available."
-                                                : result.error || "Could not update item.",
-                                            }));
-                                            if (result.success) router.refresh();
-                                          })
-                                        }
-                                        aria-pressed="false"
-                                        title="Currently unavailable — mark available"
-                                        className="rounded-lg px-2 py-1 text-[10px] font-black text-white bg-slate-400 disabled:opacity-50"
-                                      >
-                                        Mark available
-                                      </button>
-                                    ))}
+                                                : "Item marked unavailable; customer refund recorded."
+                                              : result.error || "Could not update item.",
+                                          }));
+                                          if (result.success) router.refresh();
+                                        })
+                                      }
+                                    />
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -1124,8 +1120,13 @@ export function StorePortalView({
             )}
 
             <form onSubmit={handleProductSubmit} className="space-y-4">
-              {/* Product Photo Upload / Camera */}
+              {/* Product Photo Upload / Camera — mandatory */}
               <ProductImageCapture images={images} onChange={setImages} />
+              {images.length === 0 && (
+                <p className="-mt-2 text-[11px] font-bold text-amber-700">
+                  At least one photo is required before you can publish this item.
+                </p>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
@@ -1204,31 +1205,56 @@ export function StorePortalView({
 
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                    Original Shelf Price (₦) *
+                    Current Selling Price (₦) *
                   </label>
                   <input
                     type="number"
                     required
-                    min={100}
+                    min={1}
+                    value={currentPrice}
+                    onChange={(e) => setCurrentPrice(Number(e.target.value))}
+                    placeholder="e.g. 2500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                    The price customers pay today.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                    Original Shelf Price (₦) (Optional)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
                     value={originalPrice}
-                    onChange={(e) => setOriginalPrice(Number(e.target.value))}
+                    onChange={(e) =>
+                      setOriginalPrice(e.target.value === "" ? "" : Number(e.target.value))
+                    }
+                    placeholder="e.g. 5000"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                    Base Markdown % * (e.g. 40%)
+                    Base Markdown % (Optional)
                   </label>
                   <input
                     type="number"
-                    required
-                    min={5}
-                    max={90}
+                    min={0}
+                    max={95}
                     value={baseDiscountPercent}
-                    onChange={(e) => setBaseDiscountPercent(Number(e.target.value))}
+                    onChange={(e) =>
+                      setBaseDiscountPercent(e.target.value === "" ? "" : Number(e.target.value))
+                    }
+                    placeholder="e.g. 40"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
                   />
+                  <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                    Used for weekly price drift when an original price is given.
+                  </span>
                 </div>
 
                 <div>
@@ -1348,6 +1374,86 @@ export function StorePortalView({
           router.refresh();
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * Sliding availability toggle for order items.
+ *
+ * Clicking slides the thumb to the requested side IMMEDIATELY (visual
+ * acknowledgement that the click registered) and shows a spinner while the
+ * server action runs. If the server rejects the change the toggle rolls back
+ * to its previous state and surfaces the error.
+ */
+function AvailabilityToggle({
+  status,
+  onDecide,
+}: {
+  status: "pending" | "available" | "unavailable";
+  onDecide: (available: boolean) => void;
+}) {
+  const available = status === "available";
+  const [optimistic, setOptimistic] = useState<"idle" | "to-available" | "to-unavailable">("idle");
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  const visuallyAvailable = optimistic === "to-available" ? true : optimistic === "to-unavailable" ? false : available;
+  const busy = optimistic !== "idle";
+
+  const handleClick = () => {
+    if (busy) return;
+    const requestAvailable = !available;
+    setToggleError(null);
+    // Slide first so the store attendant sees the click register, then commit.
+    setOptimistic(requestAvailable ? "to-available" : "to-unavailable");
+    try {
+      onDecide(requestAvailable);
+    } finally {
+      // When the transition settles the refreshed order props flip `status`
+      // to the new value; clear the optimistic override in both cases so a
+      // rejected decision rolls the thumb back visually.
+      setTimeout(() => setOptimistic("idle"), 400);
+    }
+  };
+
+  const trackColor = visuallyAvailable ? "bg-emerald-600" : "bg-slate-300";
+  const thumbColor = visuallyAvailable ? "bg-white" : "bg-slate-500";
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={busy}
+        role="switch"
+        aria-checked={visuallyAvailable}
+        aria-label={visuallyAvailable ? "Available — toggle to mark unavailable" : "Unavailable — toggle to mark available"}
+        title={visuallyAvailable ? "Currently available — click to mark unavailable" : "Currently unavailable — click to mark available"}
+        className={`relative inline-flex items-center h-5 w-[74px] rounded-full transition-colors duration-200 cursor-pointer disabled:cursor-wait focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${trackColor} ${busy ? "opacity-70" : "hover:brightness-105"}`}
+      >
+        <span
+          className={`ml-0.5 flex items-center gap-0.5 text-[9px] font-black tracking-wide transition-all duration-200 ${
+            visuallyAvailable ? "text-white pl-1.5" : "text-slate-600 pl-2"
+          }`}
+        >
+          {visuallyAvailable ? "IN STOCK" : "OUT"}
+        </span>
+        <span
+          className={`absolute top-0.5 flex items-center justify-center w-4 h-4 rounded-full shadow transition-all duration-200 ${thumbColor} ${
+            visuallyAvailable ? "left-[calc(100%-1.125rem)]" : "left-0.5"
+          }`}
+        >
+          {busy && (
+            <span className="w-2 h-2 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          )}
+        </span>
+      </button>
+      {busy && (
+        <span className="text-[9px] font-bold text-slate-400 animate-pulse">Saving…</span>
+      )}
+      {toggleError && (
+        <span className="text-[9px] font-bold text-rose-600">{toggleError}</span>
+      )}
     </div>
   );
 }

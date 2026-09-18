@@ -13,11 +13,13 @@ import {
   User,
   Truck,
 } from "lucide-react";
-import { CartSummary, Customer } from "@/lib/types";
+import { CartSummary, Customer, PaymentMethod } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
+import { calculateWalletDiscount } from "@/lib/fees";
 import { createOrder } from "@/lib/actions";
 import { getSession } from "@/lib/auth";
 import { AuthModal } from "@/components/AuthModal";
+import { notifySessionChanged } from "@/components/SessionProvider";
 import { useStores } from "@/components/CatalogProvider";
 import {
   addCalendarDays,
@@ -61,9 +63,7 @@ export function CheckoutModal({
     nextAvailablePickupDate(consolidating)
   );
   const [pickupTimeSlot, setPickupTimeSlot] = useState("4:00 PM – 7:00 PM");
-  const [paymentMethod, setPaymentMethod] = useState<
-    "paystack" | "flutterwave" | "bank_transfer" | "wallet"
-  >("paystack");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("paystack");
 
   const availableSlots = useMemo(
     () =>
@@ -74,54 +74,79 @@ export function CheckoutModal({
     [consolidating, pickupDate]
   );
 
+  // Wallet checkout waives the ₦800 base pickup fee; multi-store surcharges
+  // stay. Mirrors the server-side calculation in createOrder — the server
+  // recomputes this and never trusts the client total.
+  const walletDiscount = paymentMethod === "wallet" ? calculateWalletDiscount(cartSummary.storesInvolved.length) : 0;
+  const payableTotal = Math.max(0, cartSummary.subtotal + cartSummary.pickupFee - walletDiscount);
+
   useEffect(() => {
     if (!isOpen) return;
+    // setState calls run inside a microtask so the synchronous effect body
+    // only subscribes (react-hooks/set-state-in-effect).
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
 
-    if (!consolidating && originStore) {
-      setStoreId(originStore.id);
-    }
+      if (!consolidating && originStore) {
+        setStoreId(originStore.id);
+      }
 
-    if (consolidating) {
-      // Hub and batch are assigned automatically: ordered at least 30
-      // minutes before a batch's WAT cutoff lands in that batch.
-      const assignment = autoAssignHubBatch();
-      setStoreId(originStore?.id || "");
-      setPickupDate(assignment.pickupDate);
-      setPickupTimeSlot(assignment.pickupTimeSlot);
-      return;
-    }
+      if (consolidating) {
+        // Hub and batch are assigned automatically: ordered at least 30
+        // minutes before a batch's WAT cutoff lands in that batch.
+        const assignment = autoAssignHubBatch();
+        setStoreId(originStore?.id || "");
+        setPickupDate(assignment.pickupDate);
+        setPickupTimeSlot(assignment.pickupTimeSlot);
+        return;
+      }
 
-    const earliest = nextAvailablePickupDate(consolidating);
-    setPickupDate((current) => (current < earliest ? earliest : current));
+      const earliest = nextAvailablePickupDate(consolidating);
+      setPickupDate((current) => (current < earliest ? earliest : current));
 
-    getSession()
-      .then((session) => {
-        setSessionCustomer(session);
-        if (session) {
-          setCustomerName((current) => current || session.name);
-          setCustomerEmail((current) => current || session.email);
-          setCustomerPhone((current) => current || session.phone);
-        } else {
-          setCustomerName((current) => current || "Amina Bello");
-          setCustomerEmail((current) => current || "amina.bello@example.ng");
-          setCustomerPhone((current) => current || "+234 803 456 7890");
-        }
-      })
-      .catch(() => setSessionCustomer(null));
+      getSession()
+        .then((session) => {
+          if (cancelled) return;
+          setSessionCustomer(session);
+          if (session) {
+            setCustomerName((current) => current || session.name);
+            setCustomerEmail((current) => current || session.email);
+            setCustomerPhone((current) => current || session.phone);
+          } else {
+            setCustomerName((current) => current || "Amina Bello");
+            setCustomerEmail((current) => current || "amina.bello@example.ng");
+            setCustomerPhone((current) => current || "+234 803 456 7890");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setSessionCustomer(null);
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, consolidating, originStore]);
 
   useEffect(() => {
-    if (availableSlots.length === 0) {
-      const tomorrow = addCalendarDays(getLagosDateString(), 1);
-      if (pickupDate !== tomorrow) {
-        setPickupDate(tomorrow);
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      if (availableSlots.length === 0) {
+        const tomorrow = addCalendarDays(getLagosDateString(), 1);
+        if (pickupDate !== tomorrow) {
+          setPickupDate(tomorrow);
+        }
+        return;
       }
-      return;
-    }
 
-    if (!availableSlots.some((slot) => slot.value === pickupTimeSlot)) {
-      setPickupTimeSlot(availableSlots[0].value);
-    }
+      if (!availableSlots.some((slot) => slot.value === pickupTimeSlot)) {
+        setPickupTimeSlot(availableSlots[0].value);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [availableSlots, pickupDate, pickupTimeSlot]);
 
   if (!isOpen) return null;
@@ -154,9 +179,9 @@ export function CheckoutModal({
       }
 
       if (paymentMethod === "wallet") {
-        if (fresh.walletBalance < cartSummary.total) {
+        if (fresh.walletBalance < payableTotal) {
           setErrorMsg(
-            `Wallet balance is ${formatNaira(fresh.walletBalance)}. Choose Paystack or transfer for this order.`
+            `Wallet balance is ${formatNaira(fresh.walletBalance)} but this order costs ${formatNaira(payableTotal)}. Choose Paystack instead.`
           );
           return;
         }
@@ -174,6 +199,10 @@ export function CheckoutModal({
 
       if (result.success && result.order) {
         if (onOrderCreated) onOrderCreated(result.order.id);
+        if (paymentMethod === "wallet") {
+          // The wallet was debited server-side; refresh the navbar pill now.
+          notifySessionChanged();
+        }
         if (result.checkoutUrl) {
           window.location.assign(result.checkoutUrl);
           return;
@@ -449,21 +478,17 @@ export function CheckoutModal({
             </label>
 
             <div className="grid grid-cols-2 gap-2.5">
-              {[
+              {([
                 { id: "paystack", name: "Paystack", desc: "Cards, USSD, Transfer", icon: "💳" },
-                { id: "flutterwave", name: "Flutterwave", desc: "Barter, Verve, Visa", icon: "🦋" },
-                { id: "bank_transfer", name: "Direct Bank Transfer", desc: "Moniepoint / OPay", icon: "🏦" },
-                { id: "wallet", name: "Stillgood Wallet", desc: sessionCustomer ? `Balance ${formatNaira(sessionCustomer.walletBalance)}` : "Log in required", icon: "⚡" },
-              ].map((m) => {
+                { id: "wallet", name: "Stillgood Wallet", desc: sessionCustomer ? `Balance ${formatNaira(sessionCustomer.walletBalance)} · ₦800 pickup fee waived` : "Log in required", icon: "⚡" },
+              ] as { id: PaymentMethod; name: string; desc: string; icon: string }[]).map((m) => {
                 const isSelected = paymentMethod === m.id;
                 return (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() =>
-                      setPaymentMethod(
-                        m.id as "paystack" | "flutterwave" | "bank_transfer" | "wallet"
-                      )
+                      setPaymentMethod(m.id)
                     }
                     className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                       isSelected
@@ -491,13 +516,19 @@ export function CheckoutModal({
               <span>{consolidating ? "Multi-store pickup & handling fee" : "Pickup & handling fee"}</span>
               <span>{formatNaira(cartSummary.pickupFee)}</span>
             </div>
+            {walletDiscount > 0 && (
+              <div className="flex justify-between text-amber-700 font-bold">
+                <span>Stillgood Wallet discount (fee waived)</span>
+                <span>-{formatNaira(walletDiscount)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-emerald-700 font-bold">
               <span>Total Markdown Savings</span>
               <span>-{formatNaira(cartSummary.savingsTotal)}</span>
             </div>
             <div className="pt-2 border-t border-slate-200 flex justify-between text-sm font-black text-slate-900">
               <span>Amount Due</span>
-              <span className="text-emerald-700">{formatNaira(cartSummary.total)}</span>
+              <span className="text-emerald-700">{formatNaira(payableTotal)}</span>
             </div>
           </div>
 
@@ -514,7 +545,7 @@ export function CheckoutModal({
                 </>
               ) : (
                 <>
-                  <span>Confirm Reservation ({formatNaira(cartSummary.total)})</span>
+                  <span>Confirm Reservation ({formatNaira(payableTotal)})</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

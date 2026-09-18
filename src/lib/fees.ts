@@ -2,11 +2,25 @@ import { PopulatedCartItem } from "./types";
 
 /**
  * Platform convenience fee calculation
- * ₦250 flat or 3% of subtotal (whichever is lower), with minimum of ₦150
+ * ₦800 base for the first store + ₦500 for each additional store.
  */
+export const BASE_PICKUP_FEE = 800;
+export const ADDITIONAL_STORE_PICKUP_FEE = 500;
+
 export function calculatePickupFee(storeCount: number): number {
   if (storeCount <= 0) return 0;
-  return 800 + 500 * (storeCount - 1);
+  return BASE_PICKUP_FEE + ADDITIONAL_STORE_PICKUP_FEE * (storeCount - 1);
+}
+
+/**
+ * Apology discount for paying with the Stillgood Wallet: the base
+ * single-store pickup fee (₦800) is waived. Multi-store surcharges
+ * (₦500 per extra store) still apply in full. Recorded as an order
+ * discount — never a wallet credit.
+ */
+export function calculateWalletDiscount(storeCount: number): number {
+  if (storeCount <= 0) return 0;
+  return BASE_PICKUP_FEE;
 }
 
 export function calculatePlatformFee(subtotal: number): number {

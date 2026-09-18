@@ -9,34 +9,76 @@ interface ProductImageCaptureProps {
   onChange: (images: string[]) => void;
 }
 
+// Server Actions reject request bodies over 1MB by default, so uploaded
+// laptop photos are downscaled + re-encoded in the browser before they
+// ever reach the server. Camera captures are already ~800px JPEGs.
+const MAX_EDGE = 1000;
+const JPEG_QUALITY = 0.82;
+
+/**
+ * Downscales any image File to a compact JPEG data URL.
+ * Throws with a friendly message when the file is not a usable image.
+ */
+async function compressImageFile(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("That file is not an image. Use JPG, PNG, or WebP.");
+  }
+
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Could not read that file. Try again."));
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("That image could not be processed. Try a different photo."));
+    image.src = dataUrl;
+  });
+
+  const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.width * scale));
+  canvas.height = Math.max(1, Math.round(img.height * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Image processing is not supported in this browser.");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+}
+
 export function ProductImageCapture({ images, onChange }: ProductImageCaptureProps) {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => () => { streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
-  // File Upload Handler (reads file as base64 data URL)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File Upload Handler (compresses laptop photos before they are stored)
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
-    const file = files[0];
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Image is too large. Please choose an image under 5MB.");
+    if (images.length >= 6) {
+      setCameraError("A listing can hold at most 6 photos.");
+      e.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        onChange([...images, reader.result]);
-      }
-    };
-    reader.readAsDataURL(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    setCameraError(null);
+    setUploading(true);
+    try {
+      const dataUrl = await compressImageFile(files[0]);
+      onChange([...images, dataUrl]);
+    } catch (error) {
+      setCameraError(error instanceof Error ? error.message : "Image upload failed. Try again.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
   // Start in-browser Camera Stream
@@ -92,7 +134,7 @@ export function ProductImageCapture({ images, onChange }: ProductImageCapturePro
   return (
     <div className="space-y-3">
       <label className="text-[11px] font-bold text-slate-600 block">
-        Product Photos & Packaging Inspection
+        Product Photos & Packaging Inspection *
       </label>
 
       {/* Image Thumbnails */}
@@ -156,25 +198,26 @@ export function ProductImageCapture({ images, onChange }: ProductImageCapturePro
           {/* Upload File Button */}
           <button
             type="button"
+            disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer disabled:opacity-60"
           >
             <Upload className="w-4 h-4 text-emerald-600" />
-            <span>Upload from Device</span>
+            <span>{uploading ? "Processing…" : "Upload from Device"}</span>
           </button>
 
-          {/* Hidden File Input (supports direct phone camera capture too) */}
+          {/* Hidden File Input — no capture attribute: on laptops this must
+              open the file picker, not a camera view */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handleFileChange}
             className="hidden"
           />
 
           <span className="text-[10px] text-slate-400 font-medium">
-            (JPG, PNG, WebP up to 5MB)
+            (JPG, PNG, WebP — resized automatically)
           </span>
         </div>
       )}

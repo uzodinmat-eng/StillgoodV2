@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { 
   ShoppingBag, 
@@ -15,9 +15,8 @@ import {
 } from "lucide-react";
 import { SearchAutocomplete } from "./SearchAutocomplete";
 import { useStores } from "@/components/CatalogProvider";
+import { useSession } from "@/components/SessionProvider";
 import { formatNaira } from "@/lib/pricing";
-import { getSession } from "@/lib/auth";
-import { Customer } from "@/lib/types";
 
 interface NavbarProps {
   cartItemCount: number;
@@ -25,7 +24,6 @@ interface NavbarProps {
   onOpenCart: () => void;
   selectedStoreId?: string;
   onSelectStore?: (storeId: string) => void;
-  walletBalance?: number;
 }
 
 export function Navbar({
@@ -34,19 +32,14 @@ export function Navbar({
   onOpenCart,
   selectedStoreId = "all",
   onSelectStore,
-  walletBalance = 0,
 }: NavbarProps) {
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isCityMenuOpen, setIsCityMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [customer, setCustomer] = useState<Customer | null>(null);
+  const { customer, loading: sessionLoading } = useSession();
 
   const stores = useStores();
   const currentStore = stores.find((s) => s.id === selectedStoreId);
-
-  useEffect(() => {
-    getSession().then((session) => setCustomer(session)).catch(() => setCustomer(null));
-  }, []);
 
   return (
     <>
@@ -244,7 +237,7 @@ export function Navbar({
                 title="Stillgood Wallet"
               >
                 <span className="text-[10px] uppercase tracking-wide">Wallet</span>
-                <span>{formatNaira(walletBalance)}</span>
+                <span>{formatNaira(customer?.walletBalance ?? 0)}</span>
               </Link>
 
               <Link
@@ -252,6 +245,8 @@ export function Navbar({
                 className={`inline-flex items-center gap-1.5 min-w-10 min-h-10 px-3 rounded-xl border text-xs font-bold transition-all shadow-2xs ${
                   customer
                     ? "border-emerald-200 bg-emerald-50 hover:border-emerald-400 text-emerald-800"
+                    : sessionLoading
+                    ? "border-slate-200 bg-white text-slate-400"
                     : "border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800"
                 }`}
                 aria-label={customer ? "Your account" : "Log in"}

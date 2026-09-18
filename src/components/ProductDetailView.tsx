@@ -190,14 +190,18 @@ export function ProductDetailView({
                 <span className="text-3xl font-black text-slate-900 tracking-tight">
                   {formatNaira(product.currentPrice)}
                 </span>
-                <span className="text-sm text-slate-400 line-through font-semibold">
-                  {formatNaira(product.originalPrice)}
-                </span>
+                {product.originalPrice > product.currentPrice && (
+                  <span className="text-sm text-slate-400 line-through font-semibold">
+                    {formatNaira(product.originalPrice)}
+                  </span>
+                )}
               </div>
-              <p className="text-xs font-bold text-emerald-700 mt-1">
-                You save {formatNaira(product.originalPrice - product.currentPrice)}{" "}
-                vs supermarket shelf
-              </p>
+              {product.originalPrice > product.currentPrice && (
+                <p className="text-xs font-bold text-emerald-700 mt-1">
+                  You save {formatNaira(product.originalPrice - product.currentPrice)}{" "}
+                  vs supermarket shelf
+                </p>
+              )}
             </div>
 
             <p className="text-sm text-slate-600 leading-relaxed">

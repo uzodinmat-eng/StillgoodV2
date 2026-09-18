@@ -245,9 +245,11 @@ export function CartDrawer({
                                   <span className="text-xs font-black text-slate-900">
                                     {formatNaira(item.itemTotal)}
                                   </span>
-                                  <span className="text-[10px] text-slate-400 line-through ml-1">
-                                    {formatNaira(item.originalItemTotal)}
-                                  </span>
+                                  {item.originalItemTotal > item.itemTotal && (
+                                    <span className="text-[10px] text-slate-400 line-through ml-1">
+                                      {formatNaira(item.originalItemTotal)}
+                                    </span>
+                                  )}
                                 </div>
 
                                 {/* Quantity Stepper */}

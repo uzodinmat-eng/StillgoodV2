@@ -274,9 +274,11 @@ export default function OrderConfirmationPage() {
                     <span className="text-xs font-black text-slate-900">
                       {formatNaira(item.price * item.quantity)}
                     </span>
-                    <span className="text-[10px] text-slate-400 line-through block">
-                      {formatNaira(item.originalPrice * item.quantity)}
-                    </span>
+                    {item.originalPrice > item.price && (
+                      <span className="text-[10px] text-slate-400 line-through block">
+                        {formatNaira(item.originalPrice * item.quantity)}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -293,6 +295,12 @@ export default function OrderConfirmationPage() {
               <span>Platform Verification Fee</span>
               <span>{formatNaira(order.platformFee)}</span>
             </div>
+            {order.platformFee < 0 && (
+              <div className="flex justify-between text-amber-700 font-bold">
+                <span>Stillgood Wallet discount (pickup fee waived)</span>
+                <span>included above</span>
+              </div>
+            )}
             <div className="flex justify-between text-emerald-700 font-bold">
               <span>Total Food Waste Markdown Saved</span>
               <span>-{formatNaira(order.savingsTotal)}</span>
