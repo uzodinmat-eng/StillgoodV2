@@ -1,19 +1,77 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Sparkles,
   TrendingDown,
-  MapPin,
   ShieldCheck,
   Store,
   ArrowRight,
-  Bike
+  Bike,
 } from "lucide-react";
 
 interface HeroBannerProps {
   onExploreDeals: () => void;
+}
+
+/**
+ * Typewriter "Save Big in <location>" — types one word, holds it 5 seconds,
+ * deletes it, then moves to the next. Cycles Nigeria -> Lagos -> Abuja ->
+ * Nigeria forever. SSR renders the first word (Nigeria) so there is no
+ * hydration mismatch.
+ */
+const LOCATIONS = ["Nigeria", "Lagos", "Abuja"];
+const HOLD_MS = 5000;
+const TYPE_MS = 70;
+const DELETE_MS = 35;
+
+function RotatingLocation() {
+  const [wordIndex, setWordIndex] = useState(0);
+  const [text, setText] = useState("Nigeria");
+  const [phase, setPhase] = useState<"typing" | "holding" | "deleting">("holding");
+
+  useEffect(() => {
+    const word = LOCATIONS[wordIndex % LOCATIONS.length];
+
+    if (phase === "typing") {
+      if (text.length < word.length) {
+        const timer = setTimeout(() => setText(word.slice(0, text.length + 1)), TYPE_MS);
+        return () => clearTimeout(timer);
+      }
+      // Typing finished: start holding after a beat. Using setTimeout keeps
+      // every setState out of the synchronous effect body.
+      const timer = setTimeout(() => setPhase("holding"), TYPE_MS);
+      return () => clearTimeout(timer);
+    }
+
+    if (phase === "holding") {
+      const timer = setTimeout(() => setPhase("deleting"), HOLD_MS);
+      return () => clearTimeout(timer);
+    }
+
+    // deleting
+    if (text.length > 0) {
+      const timer = setTimeout(() => setText(text.slice(0, -1)), DELETE_MS);
+      return () => clearTimeout(timer);
+    }
+    // Deleted to empty: advance to the next word via a timeout so the setState
+    // calls happen after the effect body returns.
+    const timer = setTimeout(() => {
+      setWordIndex((wordIndex + 1) % LOCATIONS.length);
+      setPhase("typing");
+    }, DELETE_MS);
+    return () => clearTimeout(timer);
+  }, [phase, text, wordIndex]);
+
+  return (
+    <span
+      className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300"
+      aria-label={`Save Big in ${text}`}
+    >
+      {text}
+    </span>
+  );
 }
 
 export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
@@ -43,9 +101,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
         <div className="space-y-3">
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1]">
             Rescue Groceries. <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300">
-              Save Big in Nigeria.
-            </span>
+            Save Big in <RotatingLocation />.
           </h1>
           <p className="text-sm sm:text-base lg:text-lg text-emerald-100/90 font-medium max-w-2xl leading-relaxed">
             Order online and pick up at the store or send a dispatch rider.

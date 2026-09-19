@@ -306,8 +306,20 @@ export function AccountView({
                     value={payoutAmount}
                     onChange={(e) => setPayoutAmount(e.target.value.replace(/\D/g, ""))}
                     placeholder="e.g. 5000"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:outline-none ${
+                      payoutAmount && Number(payoutAmount) > customer.walletBalance
+                        ? "border-rose-300 text-rose-700"
+                        : "border-slate-200 focus:border-emerald-500"
+                    }`}
                   />
+                  <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
+                    Available: {formatNaira(customer.walletBalance)}
+                  </span>
+                  {payoutAmount && Number(payoutAmount) > customer.walletBalance && (
+                    <span className="block text-[10px] font-bold text-rose-600 mt-0.5">
+                      Exceeds your wallet balance.
+                    </span>
+                  )}
                 </label>
                 <label className="text-[11px] font-bold text-slate-500 space-y-1">
                   <span>Bank</span>
@@ -340,7 +352,7 @@ export function AccountView({
                 <div className="sm:col-span-3">
                   <button
                     type="submit"
-                    disabled={isPending}
+                    disabled={isPending || (Number(payoutAmount || 0) > customer.walletBalance)}
                     className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-60"
                   >
                     {isPending ? "Recording…" : "Request payout"}
@@ -372,10 +384,18 @@ export function AccountView({
                               ? "bg-emerald-100 text-emerald-800"
                               : request.status === "pending"
                                 ? "bg-amber-100 text-amber-800"
-                                : "bg-slate-200 text-slate-600"
+                                : request.status === "rejected"
+                                  ? "bg-rose-100 text-rose-700"
+                                  : "bg-slate-200 text-slate-600"
                           }`}
                         >
-                          {request.status}
+                          {request.status === "fulfilled"
+                            ? "Approved"
+                            : request.status === "pending"
+                              ? "Pending"
+                              : request.status === "rejected"
+                                ? "Denied"
+                                : "Failed"}
                         </span>
                       </li>
                     ))}
@@ -429,9 +449,16 @@ export function AccountView({
                           <p className="text-xs font-black text-emerald-700">
                             {formatNaira(order.total)}
                           </p>
-                          <p className="text-[10px] font-bold uppercase text-slate-400 mt-1">
-                            {order.status.replace("_", " ")}
-                          </p>
+                          <div className="flex flex-wrap items-center justify-end gap-1 mt-1">
+                            <p className="text-[10px] font-bold uppercase text-slate-400">
+                              {order.status.replace("_", " ")}
+                            </p>
+                            {order.items.some((item) => item.fulfillmentStatus === "unavailable") && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[9px] font-black uppercase">
+                                Adjusted
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Link>

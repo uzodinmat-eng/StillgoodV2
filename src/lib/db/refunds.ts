@@ -18,6 +18,7 @@ export interface WalletRefundRequest {
   status: WalletRefundStatus;
   paystackRecipientCode: string | null;
   paystackTransferCode: string | null;
+  customerWalletBalance: number;
   createdAt: string;
   updatedAt: string;
   decidedAt: string | null;
@@ -41,6 +42,7 @@ interface WalletRefundRow {
   status: string;
   paystack_recipient_code: string | null;
   paystack_transfer_code: string | null;
+  customer_wallet_balance: number | string | null;
   created_at: Date | string;
   updated_at: Date | string;
   decided_at: Date | string | null;
@@ -63,6 +65,7 @@ function hydrateRefundRow(row: WalletRefundRow): WalletRefundRequest {
     status: row.status as WalletRefundStatus,
     paystackRecipientCode: row.paystack_recipient_code,
     paystackTransferCode: row.paystack_transfer_code,
+    customerWalletBalance: asInt(row.customer_wallet_balance),
     createdAt: isoTimestamp(row.created_at),
     updatedAt: isoTimestamp(row.updated_at),
     decidedAt: row.decided_at ? isoTimestamp(row.decided_at) : null,
@@ -73,6 +76,7 @@ const REFUND_COLUMNS = `r.id, r.customer_id, c.name as customer_name, r.amount, 
   r.net_amount, r.bank_code, r.bank_name, r.account_number, r.account_name,
   r.resolved_account_name, r.name_match, r.status,
   r.paystack_recipient_code, r.paystack_transfer_code,
+  c.wallet_balance as customer_wallet_balance,
   r.created_at, r.updated_at, r.decided_at`;
 
 // Request-time helper for `requestWalletRefundAction`: validates and records a

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSession } from "./auth";
+import { formatNaira } from "./pricing";
 import {
   createRefundRequest,
   listRefundRequests,
@@ -23,10 +24,24 @@ export async function requestWalletRefundAction(input: {
     return { success: false, error: "Log in to request a bank payout." };
   }
 
+  const amount = Math.round(Number(input.amount));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { success: false, error: "Enter a valid payout amount." };
+  }
+  // Reject payouts that exceed the current wallet balance up-front so the
+  // customer gets a clear message instead of a pending row that admin can
+  // never fulfill. The balance is still re-checked atomically at payout time.
+  if (amount > customer.walletBalance) {
+    return {
+      success: false,
+      error: `Amount exceeds your ${formatNaira(customer.walletBalance)} wallet balance.`,
+    };
+  }
+
   try {
     const refund = await createRefundRequest({
       customerId: customer.id,
-      amount: Math.round(Number(input.amount)),
+      amount,
       bankCode: input.bankCode,
       bankName: input.bankName,
       accountNumber: input.accountNumber,

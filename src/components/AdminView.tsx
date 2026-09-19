@@ -1378,6 +1378,7 @@ export function AdminView({
                       <thead className="text-slate-500 uppercase tracking-wider bg-slate-50">
                         <tr>
                           <th className="py-2 px-3">Customer</th>
+                          <th className="py-2 pr-3">Wallet</th>
                           <th className="py-2 pr-3">Amount</th>
                           <th className="py-2 pr-3">Fee</th>
                           <th className="py-2 pr-3">Net</th>
@@ -1397,6 +1398,7 @@ export function AdminView({
                                 <div className="font-bold text-slate-800">{refund.customerName || refund.accountName}</div>
                                 <div className="text-[10px] text-slate-400">{new Date(refund.createdAt).toLocaleString("en-US")}</div>
                               </td>
+                              <td className="py-2 pr-3 font-bold text-slate-700">{formatNaira(refund.customerWalletBalance)}</td>
                               <td className="py-2 pr-3 font-bold">{formatNaira(refund.amount)}</td>
                               <td className="py-2 pr-3">{formatNaira(refund.fee)}</td>
                               <td className="py-2 pr-3 font-bold text-emerald-700">{formatNaira(refund.netAmount)}</td>
@@ -1490,6 +1492,7 @@ export function AdminView({
                       <thead className="text-slate-500 uppercase tracking-wider bg-slate-50">
                         <tr>
                           <th className="py-2 px-3">Customer</th>
+                          <th className="py-2 pr-3">Wallet</th>
                           <th className="py-2 pr-3">Amount</th>
                           <th className="py-2 pr-3">Net</th>
                           <th className="py-2 pr-3">Bank</th>
@@ -1503,6 +1506,7 @@ export function AdminView({
                             <td className="py-2 px-3 font-bold text-slate-800">
                               {refund.customerName || refund.accountName}
                             </td>
+                            <td className="py-2 pr-3 text-slate-700">{formatNaira(refund.customerWalletBalance)}</td>
                             <td className="py-2 pr-3">{formatNaira(refund.amount)}</td>
                             <td className="py-2 pr-3">{formatNaira(refund.netAmount)}</td>
                             <td className="py-2 pr-3 text-slate-600">

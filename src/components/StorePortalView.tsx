@@ -853,7 +853,7 @@ export function StorePortalView({
                                   <span className={`block text-[10px] font-bold ${item.fulfillmentStatus === "unavailable" ? "text-rose-700" : item.fulfillmentStatus === "available" ? "text-emerald-700" : "text-amber-700"}`}>
                                     {item.fulfillmentStatus || "pending review"}
                                   </span>
-                                  {item.fulfillmentStatus !== "picked_up" && (
+                                  {item.fulfillmentStatus !== "picked_up" && storeStatus !== "picked_up" && storeStatus !== "cancelled" && (
                                     <AvailabilityToggle
                                       status={item.fulfillmentStatus || "pending"}
                                       onDecide={(available) =>
@@ -1429,18 +1429,22 @@ function AvailabilityToggle({
         aria-checked={visuallyAvailable}
         aria-label={visuallyAvailable ? "Available — toggle to mark unavailable" : "Unavailable — toggle to mark available"}
         title={visuallyAvailable ? "Currently available — click to mark unavailable" : "Currently unavailable — click to mark available"}
-        className={`relative inline-flex items-center h-5 w-[74px] rounded-full transition-colors duration-200 cursor-pointer disabled:cursor-wait focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${trackColor} ${busy ? "opacity-70" : "hover:brightness-105"}`}
+        className={`relative h-5 w-[74px] rounded-full transition-colors duration-200 cursor-pointer disabled:cursor-wait focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${trackColor} ${busy ? "opacity-70" : "hover:brightness-105"}`}
       >
+        {/* State label — fixed left zone that clears the thumb in both states.
+            When ON the thumb parks on the right, so the label area is fully
+            visible; when OFF the thumb parks on the left and the label is
+            pushed right, but with the same base offset so both states align. */}
         <span
-          className={`ml-0.5 flex items-center gap-0.5 text-[9px] font-black tracking-wide transition-all duration-200 ${
-            visuallyAvailable ? "text-white pl-1.5" : "text-slate-600 pl-2"
+          className={`absolute inset-y-0 flex items-center text-[9px] font-black tracking-wide transition-all duration-200 ${
+            visuallyAvailable ? "left-1 text-white" : "left-7 text-slate-600"
           }`}
         >
-          {visuallyAvailable ? "IN STOCK" : "OUT"}
+          {visuallyAvailable ? "IN" : "OUT"}
         </span>
         <span
           className={`absolute top-0.5 flex items-center justify-center w-4 h-4 rounded-full shadow transition-all duration-200 ${thumbColor} ${
-            visuallyAvailable ? "left-[calc(100%-1.125rem)]" : "left-0.5"
+            visuallyAvailable ? "right-0.5" : "left-0.5"
           }`}
         >
           {busy && (

@@ -6,7 +6,6 @@ import Image from "next/image";
 import { useParams } from "next/navigation";
 import { 
   CheckCircle2, 
-  MapPin, 
   Clock, 
   ShieldCheck, 
   ArrowLeft, 
@@ -115,7 +114,13 @@ export default function OrderConfirmationPage() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-black">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>RESERVATION CONFIRMED • READY FOR PICKUP</span>
+                <span>
+                  {order.status === "picked_up"
+                    ? "PICKUP COMPLETE · LOCKED"
+                    : order.status === "cancelled"
+                      ? "ORDER CANCELLED · REFUNDED"
+                      : "RESERVATION CONFIRMED · READY FOR PICKUP"}
+                </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
                 Stillgood Pickup Pass
@@ -279,6 +284,25 @@ export default function OrderConfirmationPage() {
                         {formatNaira(item.originalPrice * item.quantity)}
                       </span>
                     )}
+                    <span
+                      className={`mt-1 inline-block px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                        item.fulfillmentStatus === "unavailable"
+                          ? "bg-rose-100 text-rose-700"
+                          : item.fulfillmentStatus === "picked_up"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : item.fulfillmentStatus === "available"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {item.fulfillmentStatus === "unavailable"
+                        ? "Cancelled · Refunded to wallet"
+                        : item.fulfillmentStatus === "picked_up"
+                          ? "Picked up"
+                          : item.fulfillmentStatus === "available"
+                            ? "Ready for pickup"
+                            : "Pending store confirmation"}
+                    </span>
                   </div>
                 </div>
               ))}
