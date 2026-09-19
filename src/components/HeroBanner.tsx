@@ -101,7 +101,7 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
         <div className="space-y-3">
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.1]">
             Rescue Groceries. <br />
-            Save Big in <RotatingLocation />.
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300">Save Big in <RotatingLocation />.</span>
           </h1>
           <p className="text-sm sm:text-base lg:text-lg text-emerald-100/90 font-medium max-w-2xl leading-relaxed">
             Order online and pick up at the store or send a dispatch rider.

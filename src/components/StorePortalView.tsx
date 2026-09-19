@@ -1431,19 +1431,12 @@ function AvailabilityToggle({
         title={visuallyAvailable ? "Currently available — click to mark unavailable" : "Currently unavailable — click to mark available"}
         className={`relative h-5 w-[74px] rounded-full transition-colors duration-200 cursor-pointer disabled:cursor-wait focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${trackColor} ${busy ? "opacity-70" : "hover:brightness-105"}`}
       >
-        {/* State label — fixed left zone that clears the thumb in both states.
-            When ON the thumb parks on the right, so the label area is fully
-            visible; when OFF the thumb parks on the left and the label is
-            pushed right, but with the same base offset so both states align. */}
-        <span
-          className={`absolute inset-y-0 flex items-center text-[9px] font-black tracking-wide transition-all duration-200 ${
-            visuallyAvailable ? "left-1 text-white" : "left-7 text-slate-600"
-          }`}
-        >
-          {visuallyAvailable ? "IN" : "OUT"}
+        <span className="absolute inset-0 grid grid-cols-2 items-center text-[9px] font-black tracking-wide pointer-events-none">
+          <span className={`text-center transition-colors duration-200 ${visuallyAvailable ? "text-white" : "text-slate-400"}`}>IN</span>
+          <span className={`text-center transition-colors duration-200 ${visuallyAvailable ? "text-emerald-900/40" : "text-slate-700"}`}>OUT</span>
         </span>
         <span
-          className={`absolute top-0.5 flex items-center justify-center w-4 h-4 rounded-full shadow transition-all duration-200 ${thumbColor} ${
+          className={`absolute top-0.5 flex items-center justify-center w-4 h-4 rounded-full shadow transition-[left,right] duration-200 ${thumbColor} ${
             visuallyAvailable ? "right-0.5" : "left-0.5"
           }`}
         >
