@@ -194,7 +194,7 @@ export function AccountView({
             </div>
             <h1 className="text-lg font-black text-slate-900">Log in to see your account</h1>
             <p className="text-xs text-slate-500">
-              Order history, savings, and Stillgood Wallet require an email or Google login. Guest checkout still works from the basket.
+              Order history and savings require an email or Google login. Guest checkout still works from the basket.
             </p>
             <button
               type="button"

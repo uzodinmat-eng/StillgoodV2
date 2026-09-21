@@ -232,16 +232,6 @@ export function Navbar({
 
               <Link
                 href="/account"
-                className="inline-flex items-center gap-1.5 px-2.5 min-h-10 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs font-black transition-all shadow-2xs"
-                aria-label="Stillgood Wallet"
-                title="Stillgood Wallet"
-              >
-                <span className="text-[10px] uppercase tracking-wide">Wallet</span>
-                <span>{formatNaira(customer?.walletBalance ?? 0)}</span>
-              </Link>
-
-              <Link
-                href="/account"
                 className={`inline-flex items-center gap-1.5 min-w-10 min-h-10 px-3 rounded-xl border text-xs font-bold transition-all shadow-2xs ${
                   customer
                     ? "border-emerald-200 bg-emerald-50 hover:border-emerald-400 text-emerald-800"
