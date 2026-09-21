@@ -240,7 +240,7 @@ export async function logout(): Promise<{ success: boolean }> {
 
 export async function updateCustomerProfile(
   customerId: string,
-  patch: Partial<Pick<Customer, "name" | "email" | "walletBalance" | "phone">>
+  patch: Partial<Pick<Customer, "name" | "email" | "walletBalance" | "phone" | "bankCode" | "bankName" | "bankAccountNumber" | "bankAccountName" | "bankResolvedAccountName" | "bankVerified">>
 ): Promise<Customer | null> {
   const customer = await findCustomerById(customerId);
   if (!customer) return null;

@@ -202,14 +202,13 @@ export async function getAdminStats(
     }
   }
 
-  // Positive customer-credit leg only (the matching platform leg is negative).
+  // Manual refunds are tracked separately from the store ledger.
   const refundRow = await queryOne<{ total: number | string }>(
-    `select coalesce(sum(le.amount), 0)::int as total
-     from public.ledger_entries le
-     join public.order_items oi on oi.id = le.ref_id
-     join public.orders o on o.id = oi.order_id
-     where le.kind = 'item_refund' and le.ref_type = 'order_item' and le.amount > 0
-     ${itemFilter.clause}`,
+    `select coalesce(sum(m.amount), 0)::int as total
+     from public.manual_item_refunds m
+     join public.orders o on o.id = m.order_id
+     join public.order_items oi on oi.id = m.order_item_id
+     where 1 = 1 ${itemFilter.clause}`,
     itemFilter.params
   );
 
@@ -315,13 +314,12 @@ async function getDailySeries(filters: AdminStatsFilters): Promise<DailyStat[]> 
 
   const refundRows = await query<{ day: Date | string; total: number | string }>(
     `select d.day::date as day,
-            coalesce(sum(case when le.amount > 0 then le.amount else 0 end), 0)::int as total
+            coalesce(sum(m.amount), 0)::int as total
      from (select generate_series($1::date, $2::date, interval '1 day')::date as day) d
-     left join public.ledger_entries le
-       on le.created_at::date = d.day
-       and le.kind = 'item_refund' and le.ref_type = 'order_item'
-     left join public.order_items oi on oi.id = le.ref_id
-     left join public.orders o on o.id = oi.order_id ${refundExtra}
+     left join public.manual_item_refunds m
+       on m.pickup_finalized_at::date = d.day
+     left join public.order_items oi on oi.id = m.order_item_id
+     left join public.orders o on o.id = m.order_id ${refundExtra}
      group by d.day
      order by d.day`,
     refundParams

@@ -156,16 +156,16 @@ export default function OrderConfirmationPage() {
               <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wide">
                 <Building2 className="w-4 h-4 text-emerald-600" />
                 <span>
-                  {order.requiresConsolidation
-                    ? "Collect At Destination Hub"
+                  {order.pickupMode === "hub"
+                    ? "Collect At Pickup Hub"
                     : "Supermarket Pickup Location"}
                 </span>
               </div>
               <p className="text-sm font-black text-slate-900">
-                {order.storeName}
+                {order.pickupDestinationName || order.storeName}
               </p>
               <p className="text-xs text-slate-600 font-medium">
-                {order.storeAddress} ({order.storeArea})
+                {order.pickupDestinationAddress || `${order.storeAddress} (${order.storeArea})`}
               </p>
             </div>
 
@@ -296,7 +296,7 @@ export default function OrderConfirmationPage() {
                       }`}
                     >
                       {item.fulfillmentStatus === "unavailable"
-                        ? "Cancelled · Refunded to wallet"
+                        ? "Cancelled · Refund pending admin payment"
                         : item.fulfillmentStatus === "picked_up"
                           ? "Picked up"
                           : item.fulfillmentStatus === "available"
@@ -319,12 +319,6 @@ export default function OrderConfirmationPage() {
               <span>Platform Verification Fee</span>
               <span>{formatNaira(order.platformFee)}</span>
             </div>
-            {order.platformFee < 0 && (
-              <div className="flex justify-between text-amber-700 font-bold">
-                <span>Stillgood Wallet discount (pickup fee waived)</span>
-                <span>included above</span>
-              </div>
-            )}
             <div className="flex justify-between text-emerald-700 font-bold">
               <span>Total Food Waste Markdown Saved</span>
               <span>-{formatNaira(order.savingsTotal)}</span>

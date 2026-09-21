@@ -3,30 +3,15 @@
 import React, { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  LogOut,
-  Package,
-  Wallet,
-  Sparkles,
-  User,
-  MapPin,
-  Clock,
-} from "lucide-react";
+import { ArrowLeft, Landmark, LogOut, Package, Sparkles, User, MapPin, Clock } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { AuthModal } from "@/components/AuthModal";
-import { notifySessionChanged } from "@/components/SessionProvider";
 import { logout } from "@/lib/auth";
 import { getCart } from "@/lib/actions";
-import {
-  listBanksAction,
-  listMyRefundRequestsAction,
-  requestWalletRefundAction,
-} from "@/lib/refunds";
+import { getMyBankAccountAction, listBanksAction, saveMyBankAccountAction } from "@/lib/bank-accounts";
 import type { PaystackBank } from "@/lib/paystack";
-import type { WalletRefundRequest } from "@/lib/db/refunds";
 import { CartSummary, Customer, Order } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
 
@@ -50,15 +35,21 @@ export function AccountView({
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  // Bank payout (wallet refund) request form state.
+  // Verified refund bank account state.
   const [banks, setBanks] = useState<PaystackBank[]>([]);
   const [banksError, setBanksError] = useState<string | null>(null);
-  const [payoutAmount, setPayoutAmount] = useState("");
-  const [payoutBankCode, setPayoutBankCode] = useState("");
-  const [payoutAccountNumber, setPayoutAccountNumber] = useState("");
-  const [payoutMsg, setPayoutMsg] = useState<string | null>(null);
-  const [payoutError, setPayoutError] = useState<string | null>(null);
-  const [refundRequests, setRefundRequests] = useState<WalletRefundRequest[]>([]);
+  const [bankCode, setBankCode] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankMsg, setBankMsg] = useState<string | null>(null);
+  const [bankError, setBankError] = useState<string | null>(null);
+  const [savedBank, setSavedBank] = useState<{
+    bankCode?: string;
+    bankName?: string;
+    maskedAccount?: string;
+    accountName?: string;
+    resolvedAccountName?: string;
+    verified?: boolean;
+  } | null>(null);
   const [cartSummary, setCartSummary] = useState<CartSummary>({
     items: [],
     itemCount: 0,
@@ -77,7 +68,7 @@ export function AccountView({
       .catch(() => undefined);
   }, []);
 
-  // Load the bank list + the user's own payout requests once signed in.
+  // Load the bank list + saved verified refund account once signed in.
   useEffect(() => {
     if (!customer) return;
     let cancelled = false;
@@ -89,14 +80,22 @@ export function AccountView({
         setBanksError(result.error || "Could not load the bank list.");
       }
     });
-    void listMyRefundRequestsAction().then((result) => {
-      if (!cancelled || !result.success || !result.requests) return;
-      setRefundRequests(result.requests);
+    void getMyBankAccountAction().then((result) => {
+      if (cancelled || !result.success) return;
+      setSavedBank({
+        bankCode: result.bankCode,
+        bankName: result.bankName,
+        maskedAccount: result.maskedAccount,
+        accountName: result.accountName,
+        resolvedAccountName: result.resolvedAccountName,
+        verified: result.verified,
+      });
+      if (result.bankCode && !bankCode) setBankCode(result.bankCode);
     });
     return () => {
       cancelled = true;
     };
-  }, [customer]);
+  }, [customer, bankCode]);
 
   // Sync server-provided account updates into local state via a microtask so
   // the effect body itself only subscribes (react-hooks/set-state-in-effect).
@@ -132,39 +131,41 @@ export function AccountView({
     setCustomer(null);
     setOrders([]);
     setSavingsTotal(0);
-    setRefundRequests([]);
+    setSavedBank(null);
     router.push("/");
     router.refresh();
   };
 
-  const selectedBank = banks.find((bank) => bank.code === payoutBankCode) || null;
+  const selectedBank = banks.find((bank) => bank.code === bankCode) || null;
 
-  const handlePayoutSubmit = (event: React.FormEvent) => {
+  const handleBankSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedBank) {
-      setPayoutError("Pick a bank.");
+      setBankError("Pick a bank.");
       return;
     }
-    setPayoutMsg(null);
-    setPayoutError(null);
+    setBankMsg(null);
+    setBankError(null);
     startTransition(async () => {
-      const result = await requestWalletRefundAction({
-        amount: Number(payoutAmount),
+      const result = await saveMyBankAccountAction({
         bankCode: selectedBank.code,
         bankName: selectedBank.name,
-        accountNumber: payoutAccountNumber.trim(),
+        accountNumber: bankAccountNumber.trim(),
       });
-      if (!result.success || !result.refund) {
-        setPayoutError(result.error || "Could not record the payout request.");
+      if (!result.success) {
+        setBankError(result.error || "Could not verify the account.");
         return;
       }
-      setRefundRequests((current) => [result.refund as WalletRefundRequest, ...current]);
-      setPayoutMsg(
-        `Request recorded. ${formatNaira(result.refund.netAmount)} will be sent after admin verification (net = amount − ₦100 fee).`
-      );
-      setPayoutAmount("");
-      setPayoutAccountNumber("");
-      notifySessionChanged();
+      setSavedBank({
+        bankCode: selectedBank.code,
+        bankName: selectedBank.name,
+        maskedAccount: result.maskedAccount,
+        accountName: customer?.name,
+        resolvedAccountName: result.resolvedName,
+        verified: true,
+      });
+      setBankMsg(`Verified: ${result.resolvedName} ✓ — refunds will use ${selectedBank.name} ${result.maskedAccount}.`);
+      setBankAccountNumber("");
       router.refresh();
     });
   };
@@ -261,72 +262,52 @@ export function AccountView({
               </div>
               <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-1">
                 <div className="flex items-center gap-2 text-emerald-700">
-                  <Wallet className="w-4 h-4" />
+                  <Landmark className="w-4 h-4" />
                   <span className="text-[11px] font-black uppercase tracking-wider">
-                    Stillgood Wallet
+                    Order history
                   </span>
                 </div>
                 <p className="text-2xl font-black text-slate-900">
-                  {formatNaira(customer.walletBalance)}
+                  {orders.length}
                 </p>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  Missing-item refunds credit here. Wallet checkout only works when this covers the order total.
+                  Unavailable items are refunded manually to your verified bank account.
                 </p>
               </div>
             </div>
 
             <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
               <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                Request bank payout
+                Refund bank account
               </h2>
               <p className="text-[11px] text-slate-500 font-medium">
-                Send wallet funds to your bank account. A ₦100 fee applies
-                (you receive amount − ₦100). No debit happens now — the balance is
-                re-checked when admin pays out.
+                Required before checkout. Unavailable items are refunded manually to this verified account after pickup is finalized.
               </p>
-              {payoutMsg && (
+              {savedBank?.verified && (
+                <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                  {savedBank.bankName} {savedBank.maskedAccount} ✓ {savedBank.resolvedAccountName}
+                </p>
+              )}
+              {bankMsg && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-                  {payoutMsg}
+                  {bankMsg}
                 </div>
               )}
-              {payoutError && (
+              {bankError && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
-                  {payoutError}
+                  {bankError}
                 </div>
               )}
               {banksError && (
                 <p className="text-[11px] font-bold text-amber-700">{banksError}</p>
               )}
-              <form onSubmit={handlePayoutSubmit} className="grid sm:grid-cols-3 gap-3">
-                <label className="text-[11px] font-bold text-slate-500 space-y-1">
-                  <span>Amount (₦)</span>
-                  <input
-                    required
-                    inputMode="numeric"
-                    value={payoutAmount}
-                    onChange={(e) => setPayoutAmount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="e.g. 5000"
-                    className={`w-full bg-slate-50 border rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:outline-none ${
-                      payoutAmount && Number(payoutAmount) > customer.walletBalance
-                        ? "border-rose-300 text-rose-700"
-                        : "border-slate-200 focus:border-emerald-500"
-                    }`}
-                  />
-                  <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
-                    Available: {formatNaira(customer.walletBalance)}
-                  </span>
-                  {payoutAmount && Number(payoutAmount) > customer.walletBalance && (
-                    <span className="block text-[10px] font-bold text-rose-600 mt-0.5">
-                      Exceeds your wallet balance.
-                    </span>
-                  )}
-                </label>
+              <form onSubmit={handleBankSubmit} className="grid sm:grid-cols-2 gap-3">
                 <label className="text-[11px] font-bold text-slate-500 space-y-1">
                   <span>Bank</span>
                   <select
                     required
-                    value={payoutBankCode}
-                    onChange={(e) => setPayoutBankCode(e.target.value)}
+                    value={bankCode}
+                    onChange={(e) => setBankCode(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
                   >
                     <option value="">Pick a bank</option>
@@ -343,65 +324,22 @@ export function AccountView({
                     required
                     inputMode="numeric"
                     maxLength={10}
-                    value={payoutAccountNumber}
-                    onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    value={bankAccountNumber}
+                    onChange={(e) => setBankAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                     placeholder="0123456789"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
                   />
                 </label>
-                <div className="sm:col-span-3">
+                <div className="sm:col-span-2">
                   <button
                     type="submit"
-                    disabled={isPending || (Number(payoutAmount || 0) > customer.walletBalance)}
+                    disabled={isPending}
                     className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-60"
                   >
-                    {isPending ? "Recording…" : "Request payout"}
+                    {isPending ? "Verifying…" : "Verify and save account"}
                   </button>
                 </div>
               </form>
-              {refundRequests.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-                    Your payout requests
-                  </h3>
-                  <ul className="divide-y divide-slate-100 text-xs">
-                    {refundRequests.map((request) => (
-                      <li key={request.id} className="py-2 flex items-center justify-between gap-2">
-                        <div>
-                          <p className="font-bold text-slate-800">
-                            {formatNaira(request.amount)} → {request.bankName} •• {request.accountNumber.slice(-4)}
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            Net {formatNaira(request.netAmount)} • {new Date(request.createdAt).toLocaleDateString("en-US")}
-                            {request.resolvedAccountName
-                              ? ` • ${request.resolvedAccountName} ${request.nameMatch ? "✓" : "✗"}`
-                              : ""}
-                          </p>
-                        </div>
-                        <span
-                          className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
-                            request.status === "fulfilled"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : request.status === "pending"
-                                ? "bg-amber-100 text-amber-800"
-                                : request.status === "rejected"
-                                  ? "bg-rose-100 text-rose-700"
-                                  : "bg-slate-200 text-slate-600"
-                          }`}
-                        >
-                          {request.status === "fulfilled"
-                            ? "Approved"
-                            : request.status === "pending"
-                              ? "Pending"
-                              : request.status === "rejected"
-                                ? "Denied"
-                                : "Failed"}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </section>
 
             <section className="space-y-3">
@@ -438,7 +376,7 @@ export function AccountView({
                           <p className="text-sm font-black text-slate-900">{order.id}</p>
                           <p className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-1">
                             <MapPin className="w-3 h-3 text-emerald-600" />
-                            {order.storeName} ({order.storeArea})
+                            {order.pickupDestinationName || order.storeName} · {order.pickupMode === "hub" ? "Hub pickup" : "Store pickup"}
                           </p>
                           <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
                             <Clock className="w-3 h-3" />

@@ -22,6 +22,9 @@ interface OrderRow {
   pickup_date: Date | string;
   pickup_time_slot: string;
   pickup_verification_code: string;
+  pickup_mode: string;
+  pickup_destination_name: string;
+  pickup_destination_address: string;
   requires_consolidation: boolean;
   origin_stores: unknown;
   hub_batch: "noon" | "evening" | null;
@@ -109,6 +112,9 @@ function mapOrder(row: OrderRow, items: OrderItemRecord[]): Order {
     total: asInt(row.total),
     status: row.status,
     paymentMethod: row.payment_method,
+    pickupMode: row.pickup_mode === "hub" ? "hub" : "store",
+    pickupDestinationName: row.pickup_destination_name || "",
+    pickupDestinationAddress: row.pickup_destination_address || "",
     paymentReference: row.payment_reference,
     pickupDate: dateOnly(row.pickup_date),
     pickupTimeSlot: row.pickup_time_slot,
@@ -197,7 +203,7 @@ export async function insertOrder(order: Order): Promise<Order> {
         store_id, store_name, store_address, store_area,
         subtotal, platform_fee, pickup_fee, savings_total, total,
         status, payment_method, payment_reference,
-        pickup_date, pickup_time_slot, pickup_verification_code,
+        pickup_date, pickup_time_slot, pickup_verification_code, pickup_mode, pickup_destination_name, pickup_destination_address,
         requires_consolidation, origin_stores, hub_batch, picked_up_at,
         created_at, updated_at
       ) values (
@@ -205,9 +211,9 @@ export async function insertOrder(order: Order): Promise<Order> {
         $6, $7, $8, $9,
         $10, $11, $12, $13, $14,
         $15, $16, $17,
-        $18, $19, $20,
-        $21, $22::jsonb, $23, $24,
-        $25, $26
+        $18, $19, $20, $21, $22, $23,
+        $24, $25::jsonb, $26, $27,
+        $28, $29
       )`,
     [
       order.id,
@@ -230,6 +236,9 @@ export async function insertOrder(order: Order): Promise<Order> {
       order.pickupDate,
       order.pickupTimeSlot,
       order.pickupVerificationCode,
+      order.pickupMode,
+      order.pickupDestinationName,
+      order.pickupDestinationAddress,
       Boolean(order.requiresConsolidation),
       JSON.stringify(order.originStores ?? []),
       order.hubBatch ?? null,

@@ -2,6 +2,8 @@ export type DateType = "best_before" | "use_by" | "expiry";
 
 export type PaymentMethod = "paystack" | "wallet";
 
+export type PickupMode = "store" | "hub";
+
 export type UrgencyLevel = "critical" | "urgent" | "moderate" | "safe";
 
 export interface StoreReview {
@@ -187,6 +189,12 @@ export interface Customer {
   phone: string;
   email: string;
   walletBalance: number;
+  bankCode?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
+  bankResolvedAccountName?: string;
+  bankVerified?: boolean;
   createdAt: string;
   authUserId?: string;
   role?: CustomerRole;
@@ -225,6 +233,9 @@ export interface Order {
   
   status: OrderStatus;
   paymentMethod: PaymentMethod;
+  pickupMode: PickupMode;
+  pickupDestinationName: string;
+  pickupDestinationAddress: string;
   paymentReference: string;
   pickupDate: string;
   pickupTimeSlot: string;

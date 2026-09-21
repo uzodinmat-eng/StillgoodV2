@@ -13,13 +13,12 @@ import {
   User,
   Truck,
 } from "lucide-react";
-import { CartSummary, Customer, PaymentMethod } from "@/lib/types";
+import { CartSummary, Customer, PaymentMethod, PickupMode } from "@/lib/types";
 import { formatNaira } from "@/lib/pricing";
-import { calculateWalletDiscount } from "@/lib/fees";
+import { calculatePickupFeeForMode } from "@/lib/fees";
 import { createOrder } from "@/lib/actions";
 import { getSession } from "@/lib/auth";
 import { AuthModal } from "@/components/AuthModal";
-import { notifySessionChanged } from "@/components/SessionProvider";
 import { useStores } from "@/components/CatalogProvider";
 import {
   addCalendarDays,
@@ -63,7 +62,8 @@ export function CheckoutModal({
     nextAvailablePickupDate(consolidating)
   );
   const [pickupTimeSlot, setPickupTimeSlot] = useState("4:00 PM – 7:00 PM");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("paystack");
+  const [paymentMethod] = useState<PaymentMethod>("paystack");
+  const [pickupMode, setPickupMode] = useState<PickupMode>("store");
 
   const availableSlots = useMemo(
     () =>
@@ -74,11 +74,11 @@ export function CheckoutModal({
     [consolidating, pickupDate]
   );
 
-  // Wallet checkout waives the ₦800 base pickup fee; multi-store surcharges
-  // stay. Mirrors the server-side calculation in createOrder — the server
-  // recomputes this and never trusts the client total.
-  const walletDiscount = paymentMethod === "wallet" ? calculateWalletDiscount(cartSummary.storesInvolved.length) : 0;
-  const payableTotal = Math.max(0, cartSummary.subtotal + cartSummary.pickupFee - walletDiscount);
+  // Single-store store pickup is free; hub pickup charges the base ₦800 fee.
+  // Mirrors calculatePickupFeeForMode — the server recomputes this and never trusts the client total.
+  const effectivePickupMode: PickupMode = consolidating ? "hub" : pickupMode;
+  const pickupFee = calculatePickupFeeForMode(cartSummary.storesInvolved.length, effectivePickupMode);
+  const payableTotal = Math.max(0, cartSummary.subtotal + pickupFee);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -178,13 +178,9 @@ export function CheckoutModal({
         return;
       }
 
-      if (paymentMethod === "wallet") {
-        if (fresh.walletBalance < payableTotal) {
-          setErrorMsg(
-            `Wallet balance is ${formatNaira(fresh.walletBalance)} but this order costs ${formatNaira(payableTotal)}. Choose Paystack instead.`
-          );
-          return;
-        }
+      if (!fresh.bankVerified) {
+        setErrorMsg("Save and verify your refund bank account before checkout.");
+        return;
       }
 
       const result = await createOrder({
@@ -195,14 +191,11 @@ export function CheckoutModal({
         pickupDate,
         pickupTimeSlot,
         paymentMethod,
+        pickupMode: effectivePickupMode,
       });
 
       if (result.success && result.order) {
         if (onOrderCreated) onOrderCreated(result.order.id);
-        if (paymentMethod === "wallet") {
-          // The wallet was debited server-side; refresh the navbar pill now.
-          notifySessionChanged();
-        }
         if (result.checkoutUrl) {
           window.location.assign(result.checkoutUrl);
           return;
@@ -311,20 +304,35 @@ export function CheckoutModal({
                 </div>
               </>
             ) : (
-              <div className="p-3 rounded-2xl border border-emerald-400 bg-emerald-50 ring-2 ring-emerald-500/20">
-                <p className="text-xs font-bold text-slate-900">
-                  {originStore?.name || "Pickup store"}
-                </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {originStore
-                    ? `${originStore.address} (${originStore.area})`
-                    : "Select a partner supermarket"}
-                </p>
-                {originStore && (
-                  <p className="text-[10px] font-semibold text-emerald-700 mt-1">
-                    Direct pickup · {originStore.openHours}
+              <div className="grid sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setPickupMode("store")}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                    pickupMode === "store"
+                      ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20"
+                      : "bg-white border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="text-xs font-black text-slate-900">{originStore?.name || "Pickup store"}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {originStore ? `${originStore.address} (${originStore.area})` : "Select a partner supermarket"}
                   </p>
-                )}
+                  <p className="text-[10px] font-bold text-emerald-700 mt-1">Store pickup · Free</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPickupMode("hub")}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                    pickupMode === "hub"
+                      ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20"
+                      : "bg-white border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="text-xs font-black text-slate-900">Stillgood Central Pickup Hub</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Petra Printing Press, Abuja</p>
+                  <p className="text-[10px] font-bold text-emerald-700 mt-1">Hub pickup · {formatNaira(800)}</p>
+                </button>
               </div>
             )}
           </div>
@@ -422,7 +430,7 @@ export function CheckoutModal({
               </p>
             ) : (
               <p className="text-[11px] text-slate-500 font-medium">
-                Not logged in. You will be asked to sign up or log in before placing the order so refunds can reach your Stillgood Wallet.
+                Not logged in. You will be asked to sign up or log in before placing the order.
               </p>
             )}
 
@@ -477,33 +485,17 @@ export function CheckoutModal({
               <span>4. Nigerian Payment Rail</span>
             </label>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              {([
-                { id: "paystack", name: "Paystack", desc: "Cards, USSD, Transfer", icon: "💳" },
-                { id: "wallet", name: "Stillgood Wallet", desc: sessionCustomer ? `Balance ${formatNaira(sessionCustomer.walletBalance)} · ₦800 pickup fee waived` : "Log in required", icon: "⚡" },
-              ] as { id: PaymentMethod; name: string; desc: string; icon: string }[]).map((m) => {
-                const isSelected = paymentMethod === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() =>
-                      setPaymentMethod(m.id)
-                    }
-                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                      isSelected
-                        ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20"
-                        : "bg-white border-slate-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{m.icon}</span>
-                      <span className="text-xs font-black text-slate-900">{m.name}</span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">{m.desc}</p>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-1 gap-2.5">
+              <button
+                type="button"
+                className="p-3 rounded-2xl border text-left bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">💳</span>
+                  <span className="text-xs font-black text-slate-900">Paystack</span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-medium mt-0.5">Cards, USSD, Transfer</p>
+              </button>
             </div>
           </div>
 
@@ -513,15 +505,9 @@ export function CheckoutModal({
               <span>{formatNaira(cartSummary.subtotal)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>{consolidating ? "Multi-store pickup & handling fee" : "Pickup & handling fee"}</span>
-              <span>{formatNaira(cartSummary.pickupFee)}</span>
+              <span>{consolidating ? "Multi-store pickup & handling fee" : effectivePickupMode === "hub" ? "Hub pickup & handling fee" : "Store pickup & handling fee"}</span>
+              <span>{formatNaira(pickupFee)}</span>
             </div>
-            {walletDiscount > 0 && (
-              <div className="flex justify-between text-amber-700 font-bold">
-                <span>Stillgood Wallet discount (fee waived)</span>
-                <span>-{formatNaira(walletDiscount)}</span>
-              </div>
-            )}
             <div className="flex justify-between text-emerald-700 font-bold">
               <span>Total Markdown Savings</span>
               <span>-{formatNaira(cartSummary.savingsTotal)}</span>
@@ -559,7 +545,7 @@ export function CheckoutModal({
         nextPath="/"
         allowGuest={false}
         title="Create an account before checkout"
-        subtitle="Your account is required so unavailable-item refunds can be credited to your Stillgood Wallet."
+        subtitle="Your account is required before placing the order."
         onLoggedIn={async (account) => {
           setSessionCustomer(account.customer);
           setCustomerName((current) => current || account.customer.name);

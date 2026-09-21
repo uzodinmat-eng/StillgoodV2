@@ -20,15 +20,13 @@ import {
   deleteStoreAsAdmin,
   getStoreThreadAction,
   getUnreadCountsAction,
-  listDecidedRefundsAction,
   listStoreProductsAction,
+  markItemRefundSentAction,
   markThreadReadAction,
-  payRefundAction,
-  rejectRefundAction,
+  rejectItemRefundAction,
   sendAdminMessageAction,
   setStoreActiveAction,
   setStoreStatusAction,
-  verifyRefundAccountAction,
 } from "@/lib/admin";
 import {
   enterAdminStoreViewAction,
@@ -39,7 +37,7 @@ import { formatNaira } from "@/lib/pricing";
 import { Customer, Order, Store, STORE_AREAS, StoreStatus } from "@/lib/types";
 import type { AdminStats, AdminStatsFilters } from "@/lib/db/admin-stats";
 import type { UnreadCounts } from "@/lib/db/messages";
-import type { WalletRefundRequest } from "@/lib/db/refunds";
+import type { ManualItemRefund } from "@/lib/db/manual-refunds";
 
 interface AdminViewProps {
   customer: Customer | null;
@@ -50,8 +48,8 @@ interface AdminViewProps {
   areas?: Store["area"][];
   stats?: AdminStats | null;
   filters?: AdminStatsFilters;
-  pendingRefunds?: WalletRefundRequest[];
-  decidedRefunds?: WalletRefundRequest[];
+  pendingRefunds?: ManualItemRefund[];
+  decidedRefunds?: ManualItemRefund[];
 }
 
 type StoreProductRow = {
@@ -554,15 +552,11 @@ export function AdminView({
     });
   };
 
-  // Refunds tab: pending table with Verify → Pay; history with from/to filters.
+  // Refunds tab: unavailable items queued after valid pickup PIN; admin pays manually.
   const [refundMsg, setRefundMsg] = useState<string | null>(null);
   const [refundError, setRefundError] = useState<string | null>(null);
   const [refundBusyId, setRefundBusyId] = useState<string | null>(null);
-  const [verifyState, setVerifyState] = useState<Record<string, { resolvedName: string; nameMatch: boolean }>>({});
-  const [historyFrom, setHistoryFrom] = useState("");
-  const [historyTo, setHistoryTo] = useState("");
-  const [history, setHistory] = useState<WalletRefundRequest[]>(decidedRefunds);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [history, setHistory] = useState<ManualItemRefund[]>(decidedRefunds);
 
   // Keep the history table in sync when the server payload refreshes.
   const historyKey = decidedRefunds.map((r) => r.id).join(",");
@@ -591,65 +585,12 @@ export function AdminView({
     });
   };
 
-  const handleVerify = (refund: WalletRefundRequest) => {
-    setRefundMsg(null);
-    setRefundError(null);
-    setRefundBusyId(refund.id);
-    startTransition(async () => {
-      try {
-        const res = await verifyRefundAccountAction(refund.id);
-        if (!res.success) {
-          setRefundError(res.error || "Could not verify the account.");
-          return;
-        }
-        setVerifyState((current) => ({
-          ...current,
-          [refund.id]: { resolvedName: res.resolvedName || "", nameMatch: res.nameMatch || false },
-        }));
-        setRefundMsg(
-          res.nameMatch
-            ? `Verified: ${res.resolvedName} ✓ — Pay is now enabled.`
-            : `Name mismatch: account resolves to "${res.resolvedName}". Payout blocked.`
-        );
-        router.refresh();
-      } finally {
-        setRefundBusyId(null);
-      }
-    });
+  const handleMarkSent = (refund: ManualItemRefund) => {
+    runRefundOp(refund.id, () => markItemRefundSentAction(refund.id), "Refund marked as sent.");
   };
 
-  const handlePay = (refund: WalletRefundRequest) => {
-    runRefundOp(
-      refund.id,
-      () => payRefundAction(refund.id),
-      `Paid ${formatNaira(refund.netAmount)} to ${refund.bankName} •• ${refund.accountNumber.slice(-4)}.`
-    );
-  };
-
-  const handleReject = (refund: WalletRefundRequest) => {
-    runRefundOp(refund.id, () => rejectRefundAction(refund.id), "Request rejected.");
-  };
-
-  const loadHistory = () => {
-    setHistoryLoading(true);
-    startTransition(async () => {
-      const res = await listDecidedRefundsAction({
-        from: historyFrom || undefined,
-        to: historyTo || undefined,
-      });
-      if (res.success && res.requests) {
-        setHistory(res.requests);
-      } else {
-        setRefundError(res.error || "Could not load refund history.");
-      }
-      setHistoryLoading(false);
-    });
-  };
-
-  const refundRowState = (refund: WalletRefundRequest): { resolvedName: string | null; nameMatch: boolean | null } => {
-    const local = verifyState[refund.id];
-    if (local) return local;
-    return { resolvedName: refund.resolvedAccountName, nameMatch: refund.nameMatch };
+  const handleReject = (refund: ManualItemRefund) => {
+    runRefundOp(refund.id, () => rejectItemRefundAction(refund.id), "Refund rejected.");
   };
 
   const kpis = [
@@ -1350,11 +1291,10 @@ export function AdminView({
             {activeTab === "refunds" && (
             <section suppressHydrationWarning className="rounded-3xl border border-slate-200 bg-white p-6 space-y-6">
               <h2 className="text-sm font-black uppercase tracking-wider">
-                Wallet payouts ({pendingRefunds.length} pending)
+                Item refunds ({pendingRefunds.length} pending)
               </h2>
               <p className="text-xs text-slate-500">
-                Verify the bank account first — Pay is enabled only when the resolved name
-                matches the customer. Payout transfers net = amount − ₦100 fee.
+                Unavailable items appear here after the pickup PIN finalizes the order. Send the amount manually from the company balance, then mark it sent.
               </p>
               {refundMsg && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
@@ -1368,70 +1308,52 @@ export function AdminView({
               )}
               <div className="space-y-2">
                 <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600">
-                  Pending requests
+                  Pending refunds
                 </h3>
                 {pendingRefunds.length === 0 ? (
-                  <p className="text-xs text-slate-500">No pending payout requests.</p>
+                  <p className="text-xs text-slate-500">No pending item refunds.</p>
                 ) : (
                   <div className="overflow-x-auto rounded-2xl border border-slate-100">
                     <table className="w-full text-left text-xs">
                       <thead className="text-slate-500 uppercase tracking-wider bg-slate-50">
                         <tr>
-                          <th className="py-2 px-3">Customer</th>
-                          <th className="py-2 pr-3">Wallet</th>
+                          <th className="py-2 px-3">Order / item</th>
+                          <th className="py-2 pr-3">Customer</th>
                           <th className="py-2 pr-3">Amount</th>
-                          <th className="py-2 pr-3">Fee</th>
-                          <th className="py-2 pr-3">Net</th>
                           <th className="py-2 pr-3">Bank / account</th>
-                          <th className="py-2 pr-3">Verification</th>
+                          <th className="py-2 pr-3">Finalized</th>
                           <th className="py-2 px-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {pendingRefunds.map((refund) => {
-                          const state = refundRowState(refund);
-                          const verified = state.nameMatch === true && !!state.resolvedName;
                           const busy = refundBusyId === refund.id;
                           return (
                             <tr key={refund.id} className="border-t border-slate-100">
                               <td className="py-2 px-3">
-                                <div className="font-bold text-slate-800">{refund.customerName || refund.accountName}</div>
-                                <div className="text-[10px] text-slate-400">{new Date(refund.createdAt).toLocaleString("en-US")}</div>
-                              </td>
-                              <td className="py-2 pr-3 font-bold text-slate-700">{formatNaira(refund.customerWalletBalance)}</td>
-                              <td className="py-2 pr-3 font-bold">{formatNaira(refund.amount)}</td>
-                              <td className="py-2 pr-3">{formatNaira(refund.fee)}</td>
-                              <td className="py-2 pr-3 font-bold text-emerald-700">{formatNaira(refund.netAmount)}</td>
-                              <td className="py-2 pr-3 text-slate-600">
-                                <div className="font-bold">{refund.bankName}</div>
-                                <div className="font-mono">{refund.accountNumber}</div>
+                                <div className="font-bold text-slate-800">{refund.orderId}</div>
+                                <div className="text-[10px] text-slate-500">{refund.productName} × {refund.quantity}</div>
                               </td>
                               <td className="py-2 pr-3">
-                                {state.resolvedName ? (
-                                  <span className={`inline-flex items-center gap-1 font-bold ${state.nameMatch ? "text-emerald-700" : "text-rose-600"}`}>
-                                    {state.resolvedName} {state.nameMatch ? "✓" : "✗"}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400">Not verified</span>
-                                )}
+                                <div className="font-bold text-slate-800">{refund.customerName || refund.accountName}</div>
+                                <div className="text-[10px] text-slate-400">{new Date(refund.unavailableAt).toLocaleString("en-US")}</div>
                               </td>
+                              <td className="py-2 pr-3 font-bold text-emerald-700">{formatNaira(refund.amount)}</td>
+                              <td className="py-2 pr-3 text-slate-600">
+                                <div className="font-bold">{refund.accountName}</div>
+                                <div>{refund.bankName}</div>
+                                <div className="font-mono">{refund.accountNumber}</div>
+                                <div className="text-[10px] text-slate-400">Resolved: {refund.resolvedAccountName}</div>
+                              </td>
+                              <td className="py-2 pr-3 text-slate-600">{new Date(refund.pickupFinalizedAt).toLocaleString("en-US")}</td>
                               <td className="py-2 px-3 text-right space-x-2 whitespace-nowrap">
                                 <button
                                   type="button"
                                   disabled={busy}
-                                  onClick={() => handleVerify(refund)}
-                                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] disabled:opacity-50"
-                                >
-                                  {busy ? "…" : "Verify"}
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={busy || !verified}
-                                  title={verified ? `Pay ${formatNaira(refund.netAmount)}` : "Verify with a matching name first"}
-                                  onClick={() => handlePay(refund)}
+                                  onClick={() => handleMarkSent(refund)}
                                   className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] disabled:opacity-50"
                                 >
-                                  Pay
+                                  {busy ? "…" : "Mark sent"}
                                 </button>
                                 <button
                                   type="button"
@@ -1451,82 +1373,51 @@ export function AdminView({
                 )}
               </div>
               <div className="space-y-2">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600">
-                    Fulfilled / failed / rejected ({history.length})
-                  </h3>
-                  <div className="flex gap-2 items-end">
-                    <label className="text-[11px] font-bold text-slate-500 space-y-1">
-                      <span>From</span>
-                      <input
-                        type="date"
-                        value={historyFrom}
-                        onChange={(e) => setHistoryFrom(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
-                      />
-                    </label>
-                    <label className="text-[11px] font-bold text-slate-500 space-y-1">
-                      <span>To</span>
-                      <input
-                        type="date"
-                        value={historyTo}
-                        onChange={(e) => setHistoryTo(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      disabled={historyLoading}
-                      onClick={loadHistory}
-                      className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold disabled:opacity-50"
-                    >
-                      {historyLoading ? "Loading…" : "Filter"}
-                    </button>
-                  </div>
-                </div>
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                  Sent / rejected ({history.length})
+                </h3>
                 {history.length === 0 ? (
-                  <p className="text-xs text-slate-500">No decided requests yet.</p>
+                  <p className="text-xs text-slate-500">No decided refunds yet.</p>
                 ) : (
                   <div className="overflow-x-auto rounded-2xl border border-slate-100">
                     <table className="w-full text-left text-xs">
                       <thead className="text-slate-500 uppercase tracking-wider bg-slate-50">
                         <tr>
-                          <th className="py-2 px-3">Customer</th>
-                          <th className="py-2 pr-3">Wallet</th>
+                          <th className="py-2 px-3">Order / item</th>
+                          <th className="py-2 pr-3">Customer</th>
                           <th className="py-2 pr-3">Amount</th>
-                          <th className="py-2 pr-3">Net</th>
                           <th className="py-2 pr-3">Bank</th>
                           <th className="py-2 pr-3">Status</th>
-                          <th className="py-2 px-3">Decided</th>
+                          <th className="py-2 px-3">Finalized</th>
                         </tr>
                       </thead>
                       <tbody>
                         {history.map((refund) => (
                           <tr key={refund.id} className="border-t border-slate-100">
                             <td className="py-2 px-3 font-bold text-slate-800">
+                              <div>{refund.orderId}</div>
+                              <div className="text-[10px] font-normal text-slate-500">{refund.productName} × {refund.quantity}</div>
+                            </td>
+                            <td className="py-2 pr-3 font-bold text-slate-800">
                               {refund.customerName || refund.accountName}
                             </td>
-                            <td className="py-2 pr-3 text-slate-700">{formatNaira(refund.customerWalletBalance)}</td>
                             <td className="py-2 pr-3">{formatNaira(refund.amount)}</td>
-                            <td className="py-2 pr-3">{formatNaira(refund.netAmount)}</td>
                             <td className="py-2 pr-3 text-slate-600">
                               {refund.bankName} •• {refund.accountNumber.slice(-4)}
                             </td>
                             <td className="py-2 pr-3">
                               <span
                                 className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
-                                  refund.status === "fulfilled"
+                                  refund.status === "sent"
                                     ? "bg-emerald-100 text-emerald-800"
-                                    : refund.status === "failed"
-                                      ? "bg-rose-100 text-rose-800"
-                                      : "bg-slate-200 text-slate-600"
+                                    : "bg-slate-200 text-slate-600"
                                 }`}
                               >
                                 {refund.status}
                               </span>
                             </td>
                             <td className="py-2 px-3 text-slate-500">
-                              {refund.decidedAt ? new Date(refund.decidedAt).toLocaleString("en-US") : "—"}
+                              {new Date(refund.pickupFinalizedAt).toLocaleString("en-US")}
                             </td>
                           </tr>
                         ))}

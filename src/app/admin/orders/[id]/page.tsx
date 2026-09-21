@@ -116,7 +116,7 @@ export default async function AdminOrderDetailPage({
             </div>
             <div>
               <span className="block text-[10px] uppercase font-bold text-slate-400">Pickup</span>
-              <span className="font-bold text-slate-800">{order.pickupDate} • {order.pickupTimeSlot}</span>
+              <span className="font-bold text-slate-800">{order.pickupDestinationName || order.storeName} · {order.pickupMode === "hub" ? "Hub" : "Store"} · {order.pickupDate} • {order.pickupTimeSlot}</span>
               <span className="block">
                 PIN <span className="font-mono font-black">{order.pickupVerificationCode}</span>
                 {order.pickedUpAt ? ` • picked up ${new Date(order.pickedUpAt).toLocaleString()}` : ""}
@@ -138,7 +138,7 @@ export default async function AdminOrderDetailPage({
                   <th className="py-2 pr-3">Price</th>
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Decided at</th>
-                  <th className="py-2 pr-3">Refunded at</th>
+                  <th className="py-2 pr-3">Unavailable at</th>
                   <th className="py-2">Decision latency</th>
                 </tr>
               </thead>

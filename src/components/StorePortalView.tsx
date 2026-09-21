@@ -869,7 +869,7 @@ export function StorePortalView({
                                             [order.id]: result.success
                                               ? available
                                                 ? "Item confirmed available."
-                                                : "Item marked unavailable; customer refund recorded."
+                                                : "Item marked unavailable; queued for admin manual refund."
                                               : result.error || "Could not update item.",
                                           }));
                                           if (result.success) router.refresh();

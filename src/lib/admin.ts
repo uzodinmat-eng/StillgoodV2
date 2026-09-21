@@ -5,8 +5,7 @@ import { getSession } from "./auth";
 import { customerIsAdmin } from "./auth-utils";
 import { execute, queryOne } from "./db/client";
 import { getAdminStats, AdminStats, AdminStatsFilters } from "./db/admin-stats";
-import { getRefundRequest, failRefund, fulfillRefund, listRefundRequests, rejectRefund, setRefundResolved, WalletRefundRequest, WalletRefundStatus } from "./db/refunds";
-import { createPaystackRecipient, initiatePaystackTransfer, paystackNamesMatch, resolvePaystackAccount } from "./paystack";
+import { listManualRefunds, ManualItemRefund, markManualRefund } from "./db/manual-refunds";
 import { getUnreadCounts, listStoreThread, markThreadRead, sendStoreMessage, StoreMessage, UnreadCounts } from "./db/messages";
 import { listAllOrders } from "./db/orders";
 import { insertStore, listStores, STORE_AREAS, updateStoreStatus } from "./db/stores";
@@ -51,8 +50,8 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
   areas: Store["area"][];
   stats: AdminStats | null;
   filters: AdminDeskFilters;
-  pendingRefunds: WalletRefundRequest[];
-  decidedRefunds: WalletRefundRequest[];
+  pendingRefunds: ManualItemRefund[];
+  decidedRefunds: ManualItemRefund[];
 }> {
   const customer = await getSession();
   const isAdmin = customerIsAdmin(customer);
@@ -74,13 +73,12 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
     listStores({ all: true }),
     listAllOrders(ADMIN_DESK_ORDER_LIMIT),
     getAdminStats(filters).catch(() => null),
-    listRefundRequests({ status: "pending", limit: 200 }).catch((): WalletRefundRequest[] => []),
+    listManualRefunds("pending").catch((): ManualItemRefund[] => []),
     Promise.all([
-      listRefundRequests({ status: "fulfilled", limit: 100 }).catch((): WalletRefundRequest[] => []),
-      listRefundRequests({ status: "failed", limit: 100 }).catch((): WalletRefundRequest[] => []),
-      listRefundRequests({ status: "rejected", limit: 100 }).catch((): WalletRefundRequest[] => []),
-    ]).then(([fulfilled, failed, rejected]) =>
-      [...fulfilled, ...failed, ...rejected].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 200)
+      listManualRefunds("sent").catch((): ManualItemRefund[] => []),
+      listManualRefunds("rejected").catch((): ManualItemRefund[] => []),
+    ]).then(([sent, rejected]) =>
+      [...sent, ...rejected].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 200)
     ),
   ]);
   const approvedStores = allStores.filter((s) => s.status !== "pending");
@@ -475,131 +473,13 @@ export async function createStoreAction(
   }
 }
 
-// Admin verify: resolves the account via Paystack, records the resolved name +
-// name-match flag, and returns the resolved name so the Refunds tab can gate
-// Pay on it. The locked name-match rule: the normalized resolved name must
-// contain every token of the customer's name, or vice versa.
-export async function verifyRefundAccountAction(
-  refundId: string
-): Promise<{ success: boolean; resolvedName?: string; nameMatch?: boolean; error?: string }> {
-  try {
-    await requireAdmin();
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Not allowed.",
-    };
-  }
-
-  const id = refundId.trim();
-  if (!id) return { success: false, error: "Missing refund id." };
-
-  try {
-    const refund = await getRefundRequest(id);
-    if (!refund) return { success: false, error: "Refund request not found." };
-    if (refund.status !== "pending") {
-      return { success: false, error: "This request is no longer pending." };
-    }
-    const resolved = await resolvePaystackAccount({
-      accountNumber: refund.accountNumber,
-      bankCode: refund.bankCode,
-    });
-    const customerName = refund.accountName || refund.customerName || "";
-    const nameMatch = paystackNamesMatch(customerName, resolved.account_name);
-    await setRefundResolved(id, {
-      resolvedAccountName: resolved.account_name,
-      nameMatch,
-    });
-    revalidatePath("/admin");
-    return { success: true, resolvedName: resolved.account_name, nameMatch };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Could not verify the account.",
-    };
-  }
-}
-
-// Admin payout: creates a Paystack recipient, transfers net = amount − ₦100,
-// then debits the wallet + marks fulfilled in one atomic transaction. On
-// transfer failure the request is marked failed WITHOUT touching the wallet
-// (nothing was debited yet — `failRefund`, not `reverseRefund`).
-export async function payRefundAction(
-  refundId: string
-): Promise<{ success: boolean; transferCode?: string; error?: string }> {
-  try {
-    await requireAdmin();
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Not allowed.",
-    };
-  }
-
-  const id = refundId.trim();
-  if (!id) return { success: false, error: "Missing refund id." };
-
-  try {
-    const refund = await getRefundRequest(id);
-    if (!refund) return { success: false, error: "Refund request not found." };
-    if (refund.status !== "pending") {
-      return { success: false, error: "This request is no longer pending." };
-    }
-    if (refund.nameMatch !== true || !refund.resolvedAccountName) {
-      return {
-        success: false,
-        error: "Verify the account first — payout is blocked until the name matches.",
-      };
-    }
-    const customerName = refund.accountName || refund.customerName || "";
-    if (!paystackNamesMatch(customerName, refund.resolvedAccountName)) {
-      return {
-        success: false,
-        error: `Name mismatch: account resolves to "${refund.resolvedAccountName}".`,
-      };
-    }
-    const recipient = await createPaystackRecipient({
-      name: refund.resolvedAccountName,
-      accountNumber: refund.accountNumber,
-      bankCode: refund.bankCode,
-    });
-    let transferCode: string;
-    try {
-      const transfer = await initiatePaystackTransfer({
-        amountNaira: refund.netAmount,
-        recipientCode: recipient.recipient_code,
-        reference: `wrr_${refund.id}`,
-        reason: `Stillgood wallet payout for ${customerName}`,
-      });
-      transferCode = transfer.transfer_code;
-    } catch (error) {
-      await failRefund(id);
-      revalidatePath("/admin");
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Paystack transfer failed.",
-      };
-    }
-    await fulfillRefund(id, {
-      paystackRecipientCode: recipient.recipient_code,
-      paystackTransferCode: transferCode,
-    });
-    revalidatePath("/admin");
-    revalidatePath("/account");
-    return { success: true, transferCode };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Could not pay the refund.",
-    };
-  }
-}
-
-export async function rejectRefundAction(
+// Manual item refunds are paid outside the app from the company balance.
+export async function markItemRefundSentAction(
   refundId: string
 ): Promise<{ success: boolean; error?: string }> {
+  let admin: Customer;
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch (error) {
     return {
       success: false,
@@ -611,24 +491,23 @@ export async function rejectRefundAction(
   if (!id) return { success: false, error: "Missing refund id." };
 
   try {
-    await rejectRefund(id);
+    await markManualRefund(id, "sent", admin.id);
     revalidatePath("/admin");
     return { success: true };
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Could not reject the request.",
+      error: error instanceof Error ? error.message : "Could not update the refund.",
     };
   }
 }
 
-// History query for the fulfilled/failed/rejected table (from/to day filters).
-export async function listDecidedRefundsAction(input?: {
-  from?: string;
-  to?: string;
-}): Promise<{ success: boolean; requests?: WalletRefundRequest[]; error?: string }> {
+export async function rejectItemRefundAction(
+  refundId: string
+): Promise<{ success: boolean; error?: string }> {
+  let admin: Customer;
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch (error) {
     return {
       success: false,
@@ -636,22 +515,17 @@ export async function listDecidedRefundsAction(input?: {
     };
   }
 
+  const id = refundId.trim();
+  if (!id) return { success: false, error: "Missing refund id." };
+
   try {
-    const statuses: WalletRefundStatus[] = ["fulfilled", "failed", "rejected"];
-    const groups = await Promise.all(
-      statuses.map((status) =>
-        listRefundRequests({ status, from: input?.from, to: input?.to, limit: 200 })
-      )
-    );
-    const requests = groups
-      .flat()
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 300);
-    return { success: true, requests };
+    await markManualRefund(id, "rejected", admin.id);
+    revalidatePath("/admin");
+    return { success: true };
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Could not load refund history.",
+      error: error instanceof Error ? error.message : "Could not update the refund.",
     };
   }
 }

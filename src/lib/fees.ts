@@ -7,6 +7,11 @@ import { PopulatedCartItem } from "./types";
 export const BASE_PICKUP_FEE = 800;
 export const ADDITIONAL_STORE_PICKUP_FEE = 500;
 
+export function calculatePickupFeeForMode(storeCount: number, pickupMode: "store" | "hub"): number {
+  if (storeCount === 1 && pickupMode === "store") return 0;
+  return calculatePickupFee(storeCount);
+}
+
 export function calculatePickupFee(storeCount: number): number {
   if (storeCount <= 0) return 0;
   return BASE_PICKUP_FEE + ADDITIONAL_STORE_PICKUP_FEE * (storeCount - 1);

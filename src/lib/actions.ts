@@ -9,19 +9,18 @@ import {
 import { loadCatalog } from "./db/catalog";
 import { calculateOrderSummary } from "./fees";
 import { CartItem, CartSummary, Order, OrderItemRecord, PaymentMethod, PopulatedCartItem, Store } from "./types";
-import { calculateWalletDiscount } from "./fees";
+import { calculatePickupFeeForMode } from "./fees";
 import {
   autoAssignHubBatch,
   isValidPickupSlot,
   needsConsolidation,
   toOriginStoreRefs,
 } from "./fulfillment";
-import { formatNaira } from "./pricing";
-import { debitWallet, getSession, updateCustomerProfile } from "./auth";
+import { getSession, updateCustomerProfile } from "./auth";
 import { customerIsAdmin, normalizeNgPhone } from "./auth-utils";
 import { findOrderById, insertOrder } from "./db/orders";
 
-import { createOrderPayment, findOrderPayment, markPaystackPaymentSuccessful, markWalletPaymentSuccessful } from "./db/payments";
+import { createOrderPayment, findOrderPayment, markPaystackPaymentSuccessful } from "./db/payments";
 import { verifyPaystackTransaction } from "./paystack";
 import { initializePaystackTransaction } from "./paystack";
 
@@ -299,6 +298,7 @@ export async function createOrder(data: {
   pickupDate: string;
   pickupTimeSlot: string;
   paymentMethod: PaymentMethod;
+  pickupMode: "store" | "hub";
   }): Promise<{ success: boolean; order?: Order; checkoutUrl?: string; error?: string }> {
   const cart = await getCart();
 
@@ -307,6 +307,10 @@ export async function createOrder(data: {
   }
 
   const consolidating = needsConsolidation(cart.storesInvolved);
+  const requestedPickupMode = consolidating ? "hub" : data.pickupMode;
+  if (!consolidating && requestedPickupMode !== "store" && requestedPickupMode !== "hub") {
+    return { success: false, error: "Choose a pickup location." };
+  }
   const originStores = toOriginStoreRefs(cart.storesInvolved);
   const originStore = cart.storesInvolved[0];
 
@@ -362,27 +366,21 @@ export async function createOrder(data: {
 
   const session = await getSession();
   if (!session) {
-    return { success: false, error: "Create an account or log in before placing an order so refunds can reach your wallet." };
+    return { success: false, error: "Create an account or log in before placing an order." };
   }
 
-  if (data.paymentMethod !== "paystack" && data.paymentMethod !== "wallet") {
-    return { success: false, error: "Paystack and Stillgood Wallet are the only supported payment methods." };
+  if (!session.bankVerified) {
+    return { success: false, error: "Save and verify your refund bank account before checkout." };
   }
 
-  // Paying with the Stillgood Wallet waives the ₦800 base pickup fee (our
-  // apology for unavailable items). Multi-store surcharges still apply.
+  if (data.paymentMethod !== "paystack") {
+    return { success: false, error: "Paystack is the only supported payment method." };
+  }
+
+  // Single-store store pickup is free; hub pickup keeps the base pickup fee.
   const storeCount = cart.storesInvolved.length;
-  const walletDiscount = data.paymentMethod === "wallet" ? calculateWalletDiscount(storeCount) : 0;
-  const payableTotal = Math.max(0, cart.subtotal + cart.pickupFee - walletDiscount);
-
-  if (data.paymentMethod === "wallet") {
-    if (session.walletBalance < payableTotal) {
-      return {
-        success: false,
-        error: `Wallet balance is ${formatNaira(session.walletBalance)} but this order costs ${formatNaira(payableTotal)}. Choose Paystack instead.`,
-      };
-    }
-  }
+  const pickupFee = calculatePickupFeeForMode(storeCount, requestedPickupMode);
+  const payableTotal = Math.max(0, cart.subtotal + pickupFee);
 
   const orderId = generateOrderNumber();
   const pickupPin = generatePickupPin();
@@ -413,10 +411,11 @@ export async function createOrder(data: {
     storeAddress: selectedStore.address,
     storeArea: selectedStore.area,
     subtotal: cart.subtotal,
-    // The wallet-use discount rides in platformFee so the order total keeps
-    // reconciling: total = subtotal + pickupFee - platformFee (negative fee).
-    platformFee: cart.platformFee - walletDiscount,
-    pickupFee: cart.pickupFee,
+    platformFee: cart.platformFee,
+    pickupFee,
+    pickupMode: requestedPickupMode,
+    pickupDestinationName: requestedPickupMode === "hub" ? "Stillgood Central Pickup Hub" : selectedStore.name,
+    pickupDestinationAddress: requestedPickupMode === "hub" ? "Petra Printing Press, Abuja" : selectedStore.address,
     savingsTotal: cart.savingsTotal,
     total: payableTotal,
     status: "pending_payment",
@@ -455,26 +454,6 @@ export async function createOrder(data: {
       email: customerEmail || session.email,
       phone: customerPhone || session.phone,
     });
-  }
-
-  // Wallet checkout: no gateway. Debit the customer wallet for the discounted
-  // total and move the order straight into store confirmation. The ledger
-  // mirrors markPaystackPaymentSuccessful's platform accounting.
-  if (data.paymentMethod === "wallet") {
-    await debitWallet(session.id, payableTotal);
-    await createOrderPayment({
-      id: paymentId,
-      orderId: order.id,
-      amount: order.total,
-      reference: paymentReference,
-    });
-    await markWalletPaymentSuccessful(paymentId, order.total, order.id);
-    // Paid items leave the basket immediately — there is no gateway callback.
-    await clearPaidOrderItems(orderItems.map((item) => item.productId));
-    revalidatePath("/");
-    revalidatePath("/account");
-    revalidatePath(`/order/${order.id}`);
-    return { success: true, order };
   }
 
   await createOrderPayment({ id: paymentId, orderId: order.id, amount: order.total, reference: paymentReference });

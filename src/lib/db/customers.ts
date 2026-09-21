@@ -7,6 +7,12 @@ interface CustomerRow {
   phone: string | null;
   email: string;
   wallet_balance: number | string;
+  bank_code?: string | null;
+  bank_name?: string | null;
+  bank_account_number?: string | null;
+  bank_account_name?: string | null;
+  bank_resolved_account_name?: string | null;
+  bank_verified?: boolean | null;
   created_at: Date | string;
   auth_user_id?: string | null;
   role?: string | null;
@@ -25,6 +31,12 @@ function mapCustomer(row: CustomerRow): Customer {
     phone: row.phone || "",
     email: row.email || "",
     walletBalance: asInt(row.wallet_balance),
+    bankCode: row.bank_code || undefined,
+    bankName: row.bank_name || undefined,
+    bankAccountNumber: row.bank_account_number || undefined,
+    bankAccountName: row.bank_account_name || undefined,
+    bankResolvedAccountName: row.bank_resolved_account_name || undefined,
+    bankVerified: Boolean(row.bank_verified),
     createdAt: isoTimestamp(row.created_at),
     authUserId: row.auth_user_id || undefined,
     role: asRole(row.role),
@@ -32,7 +44,7 @@ function mapCustomer(row: CustomerRow): Customer {
   };
 }
 
-const CUSTOMER_COLUMNS = `id, name, phone, email, wallet_balance, created_at, auth_user_id, role, store_id`;
+const CUSTOMER_COLUMNS = `id, name, phone, email, wallet_balance, bank_code, bank_name, bank_account_number, bank_account_name, bank_resolved_account_name, bank_verified, created_at, auth_user_id, role, store_id`;
 
 export async function findCustomerById(id: string): Promise<Customer | null> {
   const row = await queryOne<CustomerRow>(
@@ -75,14 +87,20 @@ export async function findCustomerByPhone(phone: string): Promise<Customer | nul
 
 export async function insertCustomer(customer: Customer): Promise<Customer> {
   await execute(
-    `insert into public.customers (id, name, phone, email, wallet_balance, created_at, updated_at, auth_user_id, role, store_id)
-     values ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9)`,
+    `insert into public.customers (id, name, phone, email, wallet_balance, bank_code, bank_name, bank_account_number, bank_account_name, bank_resolved_account_name, bank_verified, created_at, updated_at, auth_user_id, role, store_id)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13, $14, $15)`,
     [
       customer.id,
       customer.name,
       customer.phone?.trim() ? customer.phone : null,
       customer.email,
       customer.walletBalance,
+      customer.bankCode ?? null,
+      customer.bankName ?? null,
+      customer.bankAccountNumber ?? null,
+      customer.bankAccountName ?? null,
+      customer.bankResolvedAccountName ?? null,
+      customer.bankVerified ?? false,
       customer.createdAt,
       customer.authUserId ?? null,
       customer.role || "customer",
@@ -95,7 +113,7 @@ export async function insertCustomer(customer: Customer): Promise<Customer> {
 export async function saveCustomer(customer: Customer): Promise<Customer> {
   await execute(
     `update public.customers
-     set name = $2, email = $3, phone = $4, wallet_balance = $5, auth_user_id = $6, role = $7, store_id = $8, updated_at = now()
+     set name = $2, email = $3, phone = $4, wallet_balance = $5, bank_code = $6, bank_name = $7, bank_account_number = $8, bank_account_name = $9, bank_resolved_account_name = $10, bank_verified = $11, auth_user_id = $12, role = $13, store_id = $14, updated_at = now()
      where id = $1`,
     [
       customer.id,
@@ -103,6 +121,12 @@ export async function saveCustomer(customer: Customer): Promise<Customer> {
       customer.phone?.trim() ? customer.phone : null,
       customer.email,
       customer.walletBalance,
+      customer.bankCode ?? null,
+      customer.bankName ?? null,
+      customer.bankAccountNumber ?? null,
+      customer.bankAccountName ?? null,
+      customer.bankResolvedAccountName ?? null,
+      customer.bankVerified ?? false,
       customer.authUserId ?? null,
       customer.role || "customer",
       customer.storeId ?? null,
