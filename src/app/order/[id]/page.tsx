@@ -26,24 +26,34 @@ export default function OrderConfirmationPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Launch celebratory confetti
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ["#10b981", "#059669", "#f59e0b", "#047857"],
-      });
-    } catch {
-      // ignore
-    }
+    const search = new URLSearchParams(window.location.search);
+    const fromPaystack = search.has("trxref") || search.has("reference") || search.get("paid") === "1";
 
-    // Fetch order
     async function loadOrder() {
       try {
         const found = await getOrderById(orderId);
+        if (fromPaystack && (!found || found.status === "pending_payment")) {
+          window.location.replace("/shop?cart=1");
+          return;
+        }
         setOrder(found);
+        if (found && found.status !== "pending_payment") {
+          try {
+            confetti({
+              particleCount: 80,
+              spread: 70,
+              origin: { y: 0.6 },
+              colors: ["#10b981", "#059669", "#f59e0b", "#047857"],
+            });
+          } catch {
+            // ignore
+          }
+        }
       } catch {
+        if (fromPaystack) {
+          window.location.replace("/shop?cart=1");
+          return;
+        }
         setOrder(null);
       } finally {
         setLoading(false);

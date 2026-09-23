@@ -40,7 +40,11 @@ export function ShopView() {
     total: 0,
     storesInvolved: [],
   });
-  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const returnedFromPaystack = searchParams.get("cart") === "1";
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(returnedFromPaystack);
+  const [cartNotice, setCartNotice] = useState<string | null>(
+    returnedFromPaystack ? "Payment did not go through. Your items are still in the basket." : null
+  );
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
 
   const refreshCart = async () => {
@@ -167,8 +171,12 @@ export function ShopView() {
 
       <CartDrawer
         isOpen={cartDrawerOpen}
-        onClose={() => setCartDrawerOpen(false)}
+        onClose={() => {
+          setCartDrawerOpen(false);
+          setCartNotice(null);
+        }}
         cartSummary={cartSummary}
+        notice={cartNotice}
         onProceedToCheckout={() => setCheckoutModalOpen(true)}
         onCartChanged={setCartSummary}
       />
@@ -178,6 +186,11 @@ export function ShopView() {
         cartSummary={cartSummary}
         onOrderCreated={() => {
           refreshCart();
+        }}
+        onReturnToBasket={(message) => {
+          setCheckoutModalOpen(false);
+          setCartNotice(message);
+          setCartDrawerOpen(true);
         }}
       />
       <Footer />

@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { findOrderByPaymentReference } from "@/lib/db/orders";
 import { markPaystackPaymentSuccessful } from "@/lib/db/payments";
+import { settleStoreWithdrawalFromPaystack } from "@/lib/db/stores";
 import { verifyPaystackWebhook } from "@/lib/paystack";
 
 export async function POST(request: Request) {
@@ -12,10 +13,21 @@ export async function POST(request: Request) {
 
   const event = JSON.parse(rawBody) as {
     event?: string;
-    data?: { reference?: string; amount?: number; currency?: string };
+    data?: { reference?: string; transfer_code?: string; amount?: number; currency?: string; status?: string };
   };
   const data = event.data;
   const reference = data?.reference;
+  if (
+    reference &&
+    (event.event === "transfer.success" || event.event === "transfer.failed" || event.event === "transfer.reversed")
+  ) {
+    await settleStoreWithdrawalFromPaystack({
+      reference,
+      transferCode: data?.transfer_code,
+      outcome: event.event === "transfer.success" ? "success" : "failed",
+    });
+    return NextResponse.json({ received: true });
+  }
   if (event.event === "charge.success" && data && reference && data.currency === "NGN") {
     const amountNaira = Math.round((data.amount || 0) / 100);
     const marked = await markPaystackPaymentSuccessful(reference, amountNaira);

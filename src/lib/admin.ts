@@ -10,7 +10,7 @@ import { findOrderPayment } from "./db/payments";
 import { refundPaystackTransaction } from "./paystack";
 import { getUnreadCounts, listStoreThread, markThreadRead, sendStoreMessage, StoreMessage, UnreadCounts } from "./db/messages";
 import { listAllOrders } from "./db/orders";
-import { insertStore, listStores, STORE_AREAS, updateStoreStatus } from "./db/stores";
+import { insertStore, listStorePayouts, listStores, STORE_AREAS, updateStoreStatus, type StorePayout } from "./db/stores";
 import { Customer, Order, Store, StoreStatus } from "./types";
 
 const TERMINAL_ORDER_STATUSES = "('picked_up', 'cancelled', 'refunded')";
@@ -54,6 +54,7 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
   filters: AdminDeskFilters;
   pendingRefunds: ManualItemRefund[];
   decidedRefunds: ManualItemRefund[];
+  payouts: StorePayout[];
 }> {
   const customer = await getSession();
   const isAdmin = customerIsAdmin(customer);
@@ -69,9 +70,10 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
       filters,
       pendingRefunds: [],
       decidedRefunds: [],
+      payouts: [],
     };
   }
-  const [allStores, orders, stats, pendingRefunds, decidedRefunds] = await Promise.all([
+  const [allStores, orders, stats, pendingRefunds, decidedRefunds, payouts] = await Promise.all([
     listStores({ all: true }),
     listAllOrders(ADMIN_DESK_ORDER_LIMIT),
     getAdminStats(filters).catch(() => null),
@@ -82,6 +84,7 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
     ]).then(([sent, rejected]) =>
       [...sent, ...rejected].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 200)
     ),
+    listStorePayouts().catch((): StorePayout[] => []),
   ]);
   const approvedStores = allStores.filter((s) => s.status !== "pending");
   const pendingStores = allStores.filter((s) => s.status === "pending");
@@ -97,6 +100,7 @@ export async function getAdminDesk(filters: AdminDeskFilters = {}): Promise<{
     filters,
     pendingRefunds,
     decidedRefunds,
+    payouts,
   };
 }
 
@@ -494,15 +498,28 @@ export async function markItemRefundSentAction(
 
   const refund = await queryOne<{
     order_id: string;
-    amount: number | string;
     status: string;
     product_name: string;
+    fulfillment_status: string | null;
+    line_amount: number | string | null;
   }>(
-    `select order_id, amount, status, product_name from public.manual_item_refunds where id = $1`,
+    `select m.order_id, m.status, m.product_name, oi.fulfillment_status,
+            (oi.price * oi.quantity)::int as line_amount
+     from public.manual_item_refunds m
+     left join public.order_items oi on oi.id = m.order_item_id
+     where m.id = $1`,
     [id]
   );
   if (!refund || refund.status !== "pending") {
     return { success: false, error: "That refund is no longer pending." };
+  }
+  if (refund.fulfillment_status !== "unavailable") {
+    return { success: false, error: "Only an unavailable item can be refunded." };
+  }
+
+  const itemAmount = Number(refund.line_amount);
+  if (!Number.isInteger(itemAmount) || itemAmount <= 0) {
+    return { success: false, error: "This unavailable item has no refundable amount." };
   }
 
   const payment = await findOrderPayment(refund.order_id);
@@ -510,12 +527,37 @@ export async function markItemRefundSentAction(
     return { success: false, error: "This order has no successful Paystack transfer to refund." };
   }
 
+  const charge = await queryOne<{ amount: number | string }>(
+    `select amount from public.order_payments
+     where order_id = $1 and status = 'success'
+     order by created_at desc limit 1`,
+    [refund.order_id]
+  );
+  const alreadySent = await queryOne<{ total: number | string }>(
+    `select coalesce(sum(oi.price * oi.quantity), 0)::int as total
+     from public.manual_item_refunds m
+     join public.order_items oi on oi.id = m.order_item_id
+     where m.order_id = $1 and m.status = 'sent'`,
+    [refund.order_id]
+  );
+  const remaining = Number(charge?.amount ?? 0) - Number(alreadySent?.total ?? 0);
+  if (itemAmount > remaining) {
+    return {
+      success: false,
+      error: `This item is ₦${itemAmount.toLocaleString("en-NG")}, which is more than the ₦${Math.max(0, remaining).toLocaleString("en-NG")} still refundable on this transfer.`,
+    };
+  }
+
   try {
+    await execute(
+      `update public.manual_item_refunds set amount = $2, updated_at = now() where id = $1 and status = 'pending'`,
+      [id, itemAmount]
+    );
     const result = await refundPaystackTransaction({
       reference: payment.gatewayReference,
-      amountNaira: Number(refund.amount),
-      customerNote: `Refund for ${refund.product_name}`,
-      merchantNote: `Unavailable item refund ${id}`,
+      amountNaira: itemAmount,
+      customerNote: `Refund for unavailable item ${refund.product_name}`,
+      merchantNote: `Partial refund ${id} for ₦${itemAmount} only`,
     });
     if (result.status === "failed") {
       return { success: false, error: "Paystack could not send this refund to the paying account." };

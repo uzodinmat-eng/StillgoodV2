@@ -9,7 +9,7 @@ import { customerIsAdmin } from "./auth-utils";
 import { loadCatalog } from "./db/catalog";
 import { completeStorePickup, decideStoreOrderItem, findOrdersForStore } from "./db/orders";
 import { findProductById, findProductsForStore, insertProduct, updateProduct } from "./db/products";
-import { createStoreWithdrawal, findStoreById, findStoreByOwnerId, getStoreBalances, listStores, markStoreWithdrawal, saveStorePayoutRecipient } from "./db/stores";
+import { createStoreWithdrawal, findStoreById, findStoreByOwnerId, getStoreBalances, listStores, markStoreWithdrawal, noteStoreWithdrawalSubmitted, saveStorePayoutRecipient } from "./db/stores";
 import { createServerSupabase } from "./supabase/server";
 import { listStoreThread, markThreadRead, sendStoreMessage, StoreMessage } from "./db/messages";
 import { withdrawalFeeFor } from "./pricing";
@@ -468,7 +468,7 @@ export async function changeLegacyAuthPasswordAction(newPassword: string): Promi
   }
 }
 
-export async function withdrawStoreBalanceAction(input: { storeId: string; amount: number }): Promise<{ success: boolean; error?: string; transferCode?: string; fee?: number; netAmount?: number }> {
+export async function withdrawStoreBalanceAction(input: { storeId: string; amount: number }): Promise<{ success: boolean; pending?: boolean; error?: string; transferCode?: string; fee?: number; netAmount?: number }> {
   try {
     const { store } = await getAuthorizedStore(input.storeId);
     const balances = await getStoreBalances(store.id);
@@ -479,8 +479,16 @@ export async function withdrawStoreBalanceAction(input: { storeId: string; amoun
     const withdrawalId = await createStoreWithdrawal(store.id, input.amount, store.paystackRecipientCode);
     try {
       const transfer = await initiatePaystackTransfer({ amountNaira: net, recipientCode: store.paystackRecipientCode, reference: withdrawalId, reason: `Stillgood payout for ${store.name}` });
-      await markStoreWithdrawal(withdrawalId, "success", transfer.transfer_code);
-      return { success: true, transferCode: transfer.transfer_code, fee, netAmount: net };
+      await noteStoreWithdrawalSubmitted(withdrawalId, transfer.transfer_code);
+      if (transfer.status === "success") {
+        await markStoreWithdrawal(withdrawalId, "success", transfer.transfer_code);
+        return { success: true, pending: false, transferCode: transfer.transfer_code, fee, netAmount: net };
+      }
+      if (transfer.status === "failed" || transfer.status === "reversed") {
+        await markStoreWithdrawal(withdrawalId, "failed");
+        return { success: false, error: "Paystack rejected the transfer. The available balance was restored." };
+      }
+      return { success: true, pending: true, transferCode: transfer.transfer_code, fee, netAmount: net };
     } catch (error) {
       await markStoreWithdrawal(withdrawalId, "failed");
       return { success: false, error: error instanceof Error ? error.message : "Paystack transfer failed." };

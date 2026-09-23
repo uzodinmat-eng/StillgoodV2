@@ -1,5 +1,5 @@
 import { Store, STORE_AREAS, StoreStatus } from "@/lib/types";
-import { asInt, execute, query, queryOne } from "./client";
+import { asInt, execute, isoTimestamp, query, queryOne } from "./client";
 
 export { STORE_AREAS };
 
@@ -277,6 +277,95 @@ export async function markStoreWithdrawal(id: string, status: 'success' | 'faile
   } else {
     await execute(`update public.store_withdrawals set status = $2, transfer_code = $3, updated_at = now() where id = $1`, [id, status, transferCode ?? null]);
   }
+}
+
+export async function noteStoreWithdrawalSubmitted(id: string, transferCode: string): Promise<void> {
+  await execute(
+    `update public.store_withdrawals set transfer_code = $2, updated_at = now() where id = $1 and status = 'pending'`,
+    [id, transferCode]
+  );
+}
+
+export async function settleStoreWithdrawalFromPaystack(input: {
+  reference: string;
+  transferCode?: string;
+  outcome: "success" | "failed";
+}): Promise<void> {
+  const row = await queryOne<{ id: string; status: string }>(
+    `select id, status from public.store_withdrawals
+     where id = $1 or ($2::text is not null and transfer_code = $2)
+     order by created_at desc limit 1`,
+    [input.reference, input.transferCode ?? null]
+  );
+  if (!row || row.status !== "pending") return;
+  if (input.outcome === "failed") {
+    await markStoreWithdrawal(row.id, "failed");
+    return;
+  }
+  await markStoreWithdrawal(row.id, "success", input.transferCode);
+}
+
+export interface StorePayout {
+  id: string;
+  storeId: string;
+  storeName: string;
+  grossAmount: number;
+  feeAmount: number;
+  netAmount: number;
+  status: "pending" | "success" | "failed";
+  transferCode: string | null;
+  bankName: string | null;
+  accountName: string | null;
+  accountNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listStorePayouts(): Promise<StorePayout[]> {
+  const rows = await query<{
+    id: string;
+    store_id: string;
+    store_name: string;
+    gross_amount: number | string;
+    fee_amount: number | string;
+    net_amount: number | string;
+    status: "pending" | "success" | "failed";
+    transfer_code: string | null;
+    bank_name: string | null;
+    account_name: string | null;
+    account_number: string | null;
+    created_at: Date | string;
+    updated_at: Date | string;
+  }>(
+    `select w.id, w.store_id, s.name as store_name,
+            coalesce(w.gross_amount, w.amount) as gross_amount,
+            coalesce(w.fee_amount, 0) as fee_amount,
+            coalesce(w.net_amount, w.amount) as net_amount,
+            w.status, w.transfer_code,
+            s.payout_bank_name as bank_name,
+            s.payout_account_name as account_name,
+            s.payout_account_number as account_number,
+            w.created_at, w.updated_at
+     from public.store_withdrawals w
+     join public.stores s on s.id = w.store_id
+     order by w.created_at desc
+     limit 300`
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    storeId: row.store_id,
+    storeName: row.store_name,
+    grossAmount: asInt(row.gross_amount),
+    feeAmount: asInt(row.fee_amount),
+    netAmount: asInt(row.net_amount),
+    status: row.status,
+    transferCode: row.transfer_code,
+    bankName: row.bank_name,
+    accountName: row.account_name,
+    accountNumber: row.account_number,
+    createdAt: isoTimestamp(row.created_at),
+    updatedAt: isoTimestamp(row.updated_at),
+  }));
 }
 
 export async function saveStorePayoutRecipient(input: { storeId: string; recipientCode: string; bankName: string; accountName: string; accountNumber: string }): Promise<void> {

@@ -454,16 +454,26 @@ export async function createOrder(data: {
 
   await createOrderPayment({ id: paymentId, orderId: order.id, amount: order.total, reference: paymentReference });
   const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://stillgood-swart.vercel.app";
-  const payment = await initializePaystackTransaction({
-    email: customerEmail,
-    amountNaira: order.total,
-    reference: paymentReference,
-    callbackUrl: `${origin}/order/${order.id}?paid=1`,
-    metadata: { order_id: order.id, payment_id: paymentId },
-  });
+  let checkoutUrl: string;
+  try {
+    const payment = await initializePaystackTransaction({
+      email: customerEmail,
+      amountNaira: order.total,
+      reference: paymentReference,
+      callbackUrl: `${origin}/order/${order.id}?paid=1`,
+      metadata: { order_id: order.id, payment_id: paymentId },
+    });
+    checkoutUrl = payment.authorization_url;
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error
+        ? error.message
+        : "Paystack could not start the transfer. Your items are still in the basket.",
+    };
+  }
 
   // Keep the cart until Paystack confirms payment.
-  const checkoutUrl = payment.authorization_url;
 
   revalidatePath("/");
   revalidatePath("/account");

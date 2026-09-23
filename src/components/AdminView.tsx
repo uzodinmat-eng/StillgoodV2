@@ -38,6 +38,7 @@ import { Customer, Order, Store, STORE_AREAS, StoreStatus } from "@/lib/types";
 import type { AdminStats, AdminStatsFilters } from "@/lib/db/admin-stats";
 import type { UnreadCounts } from "@/lib/db/messages";
 import type { ManualItemRefund } from "@/lib/db/manual-refunds";
+import type { StorePayout } from "@/lib/db/stores";
 
 interface AdminViewProps {
   customer: Customer | null;
@@ -50,6 +51,7 @@ interface AdminViewProps {
   filters?: AdminStatsFilters;
   pendingRefunds?: ManualItemRefund[];
   decidedRefunds?: ManualItemRefund[];
+  payouts?: StorePayout[];
 }
 
 type StoreProductRow = {
@@ -311,10 +313,11 @@ export function AdminView({
   filters = {},
   pendingRefunds = [],
   decidedRefunds = [],
+  payouts = [],
 }: AdminViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [activeTab, setActiveTab] = useState<"analytics" | "orders" | "stores" | "register" | "messages" | "refunds">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "orders" | "stores" | "register" | "messages" | "refunds" | "payouts">("analytics");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -607,13 +610,14 @@ export function AdminView({
 
   // Static labels only: dynamic counts live inside each section so tab clicks
   // never remount the nav and the hydration tree stays stable.
-  const tabs: { id: "analytics" | "orders" | "stores" | "register" | "messages" | "refunds"; label: string; badge?: number }[] = [
+  const tabs: { id: "analytics" | "orders" | "stores" | "register" | "messages" | "refunds" | "payouts"; label: string; badge?: number }[] = [
     { id: "analytics", label: "Analytics" },
     { id: "orders", label: "Orders" },
     { id: "stores", label: "Stores" },
     { id: "register", label: "Register Store" },
     { id: "messages", label: "Messages", badge: unread.total },
     { id: "refunds", label: "Refunds" },
+    { id: "payouts", label: "Payouts" },
   ];
 
   return (
@@ -1294,7 +1298,7 @@ export function AdminView({
                 Item refunds ({pendingRefunds.length} pending)
               </h2>
               <p className="text-xs text-slate-500">
-                Unavailable items appear here after the pickup PIN, or right away when the store cancels the order because nothing is left to collect. Mark sent to refund the item through Paystack, back to the bank account that paid.
+                Only unavailable items are listed. Refund sends Paystack the amount of that item, not the rest of the original transfer. Paystack returns it to the account that paid.
               </p>
               {refundMsg && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
@@ -1353,7 +1357,7 @@ export function AdminView({
                                   onClick={() => handleMarkSent(refund)}
                                   className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] disabled:opacity-50"
                                 >
-                                  {busy ? "…" : "Refund"}
+                                  {busy ? "…" : "Refund item"}
                                 </button>
                                 <button
                                   type="button"
@@ -1426,6 +1430,72 @@ export function AdminView({
                   </div>
                 )}
               </div>
+            </section>
+            )}
+
+            {activeTab === "payouts" && (
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 space-y-4">
+              <h2 className="text-sm font-black uppercase tracking-wider">
+                Store payouts ({payouts.length})
+              </h2>
+              <p className="text-xs text-slate-500">
+                A withdrawal sends the net amount from the Stillgood Paystack balance to the store bank account. Pending means Paystack has the transfer and has not confirmed it yet. Completed updates when Paystack reports the transfer succeeded.
+              </p>
+              {payouts.length === 0 ? (
+                <p className="text-xs text-slate-500">No store payout requests yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-slate-500 uppercase tracking-wider bg-slate-50">
+                      <tr>
+                        <th className="py-2 px-3">Store</th>
+                        <th className="py-2 pr-3">Gross / fee / net</th>
+                        <th className="py-2 pr-3">Bank</th>
+                        <th className="py-2 pr-3">Status</th>
+                        <th className="py-2 px-3">Requested</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payouts.map((payout) => (
+                        <tr key={payout.id} className="border-t border-slate-100">
+                          <td className="py-2 px-3">
+                            <div className="font-bold text-slate-800">{payout.storeName}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{payout.transferCode || payout.id}</div>
+                          </td>
+                          <td className="py-2 pr-3">
+                            <div className="font-bold text-slate-800">{formatNaira(payout.netAmount)} net</div>
+                            <div className="text-[10px] text-slate-500">
+                              {formatNaira(payout.grossAmount)} gross • {formatNaira(payout.feeAmount)} fee
+                            </div>
+                          </td>
+                          <td className="py-2 pr-3 text-slate-600">
+                            <div className="font-bold">{payout.accountName || "—"}</div>
+                            <div>{payout.bankName || "No bank on file"}</div>
+                            <div className="font-mono">{payout.accountNumber || ""}</div>
+                          </td>
+                          <td className="py-2 pr-3">
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                                payout.status === "success"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : payout.status === "failed"
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {payout.status === "success" ? "Completed" : payout.status === "failed" ? "Failed" : "Waiting on Paystack"}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-slate-500">
+                            <div>{new Date(payout.createdAt).toLocaleString("en-US")}</div>
+                            <div className="text-[10px]">Updated {new Date(payout.updatedAt).toLocaleString("en-US")}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
             )}
           </>

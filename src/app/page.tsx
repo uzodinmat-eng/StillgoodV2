@@ -3,11 +3,9 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { ArrowRight, Truck } from "lucide-react";
+import { ArrowRight, Store, Truck } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { HeroBanner } from "@/components/HeroBanner";
-import { CategoryTiles } from "@/components/CategoryTiles";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CheckoutModal } from "@/components/CheckoutModal";
 import { Footer } from "@/components/Footer";
@@ -17,7 +15,6 @@ import { getCart } from "@/lib/actions";
 
 export default function HomePage() {
   const stores = useStores();
-  const router = useRouter();
 
   const [cartSummary, setCartSummary] = useState<CartSummary>({
     items: [],
@@ -31,6 +28,7 @@ export default function HomePage() {
     storesInvolved: [],
   });
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
 
   const refreshCart = async () => {
@@ -96,13 +94,6 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-
-        <CategoryTiles
-          selectedCategoryId="all"
-          onSelectCategory={(categoryId) =>
-            router.push(categoryId === "all" ? "/shop" : `/shop?category=${encodeURIComponent(categoryId)}`)
-          }
-        />
 
         <section className="my-12">
           <div className="flex items-center justify-between mb-6">
@@ -170,12 +161,40 @@ export default function HomePage() {
             ))}
           </div>
         </section>
+
+        <section className="rounded-3xl border border-emerald-200 bg-white p-6 sm:p-8 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div className="space-y-2 max-w-xl">
+              <div className="inline-flex items-center gap-1.5 text-emerald-700 text-[11px] font-black uppercase tracking-wider">
+                <Store className="w-3.5 h-3.5" />
+                <span>For supermarkets</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+                Are you a store?
+              </h2>
+              <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                List short-dated groceries, confirm what is still on the shelf, and withdraw settled pickup funds to your bank account.
+              </p>
+            </div>
+            <Link
+              href="/store/register"
+              className="inline-flex items-center justify-center gap-2 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm px-5 py-3.5 rounded-2xl shadow-md shadow-emerald-700/20"
+            >
+              Register your store
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </section>
       </main>
 
       <CartDrawer
         isOpen={cartDrawerOpen}
-        onClose={() => setCartDrawerOpen(false)}
+        onClose={() => {
+          setCartDrawerOpen(false);
+          setCartNotice(null);
+        }}
         cartSummary={cartSummary}
+        notice={cartNotice}
         onProceedToCheckout={() => setCheckoutModalOpen(true)}
         onCartChanged={setCartSummary}
       />
@@ -186,6 +205,11 @@ export default function HomePage() {
         cartSummary={cartSummary}
         onOrderCreated={() => {
           refreshCart();
+        }}
+        onReturnToBasket={(message) => {
+          setCheckoutModalOpen(false);
+          setCartNotice(message);
+          setCartDrawerOpen(true);
         }}
       />
 

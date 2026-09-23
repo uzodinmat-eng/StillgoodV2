@@ -55,6 +55,7 @@ export function ProductDetailView({
   const [isPending, startTransition] = useTransition();
   const [cartSummary, setCartSummary] = useState<CartSummary>(emptyCart);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   if (seenProductId !== product.id) {
@@ -328,8 +329,12 @@ export function ProductDetailView({
 
       <CartDrawer
         isOpen={cartDrawerOpen}
-        onClose={() => setCartDrawerOpen(false)}
+        onClose={() => {
+          setCartDrawerOpen(false);
+          setCartNotice(null);
+        }}
         cartSummary={cartSummary}
+        notice={cartNotice}
         onProceedToCheckout={() => {
           setCartDrawerOpen(false);
           setCheckoutOpen(true);
@@ -342,6 +347,11 @@ export function ProductDetailView({
         cartSummary={cartSummary}
         onOrderCreated={() => {
           refreshCart();
+        }}
+        onReturnToBasket={(message) => {
+          setCheckoutOpen(false);
+          setCartNotice(message);
+          setCartDrawerOpen(true);
         }}
       />
     </div>

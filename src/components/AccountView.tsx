@@ -32,6 +32,7 @@ export function AccountView({
   const [savingsTotal, setSavingsTotal] = useState(initialSavingsTotal);
   const [authOpen, setAuthOpen] = useState(!initialCustomer);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -410,8 +411,12 @@ export function AccountView({
 
       <CartDrawer
         isOpen={cartDrawerOpen}
-        onClose={() => setCartDrawerOpen(false)}
+        onClose={() => {
+          setCartDrawerOpen(false);
+          setCartNotice(null);
+        }}
         cartSummary={cartSummary}
+        notice={cartNotice}
         onProceedToCheckout={() => setCheckoutOpen(true)}
         onCartChanged={setCartSummary}
       />
@@ -422,6 +427,11 @@ export function AccountView({
         onOrderCreated={() => {
           getCart().then(setCartSummary).catch(() => undefined);
           router.refresh();
+        }}
+        onReturnToBasket={(message) => {
+          setCheckoutOpen(false);
+          setCartNotice(message);
+          setCartDrawerOpen(true);
         }}
       />
       <AuthModal

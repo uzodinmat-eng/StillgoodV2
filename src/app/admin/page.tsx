@@ -32,6 +32,7 @@ export default async function AdminPage({
       filters={desk.filters}
       pendingRefunds={desk.pendingRefunds}
       decidedRefunds={desk.decidedRefunds}
+      payouts={desk.payouts}
     />
   );
 }

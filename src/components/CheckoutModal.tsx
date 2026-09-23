@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   X,
   MapPin,
@@ -35,6 +34,7 @@ interface CheckoutModalProps {
   onClose: () => void;
   cartSummary: CartSummary;
   onOrderCreated?: (orderId: string) => void;
+  onReturnToBasket?: (message: string) => void;
 }
 
 export function CheckoutModal({
@@ -42,8 +42,8 @@ export function CheckoutModal({
   onClose,
   cartSummary,
   onOrderCreated,
+  onReturnToBasket,
 }: CheckoutModalProps) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -178,30 +178,34 @@ export function CheckoutModal({
         return;
       }
 
-      const result = await createOrder({
-        customerName: name,
-        customerEmail: email,
-        customerPhone: phone,
-        storeId,
-        pickupDate,
-        pickupTimeSlot,
-        paymentMethod,
-        pickupMode: effectivePickupMode,
-      });
-
-      if (result.success && result.order) {
-        if (onOrderCreated) onOrderCreated(result.order.id);
-        if (result.checkoutUrl) {
-          window.location.assign(result.checkoutUrl);
-          return;
-        }
-        router.push(`/order/${result.order.id}`);
+      let result: Awaited<ReturnType<typeof createOrder>>;
+      try {
+        result = await createOrder({
+          customerName: name,
+          customerEmail: email,
+          customerPhone: phone,
+          storeId,
+          pickupDate,
+          pickupTimeSlot,
+          paymentMethod,
+          pickupMode: effectivePickupMode,
+        });
+      } catch {
         onClose();
-      } else {
-        setErrorMsg(
-          result.error || "Failed to confirm pickup reservation. Please try again."
-        );
+        onReturnToBasket?.("Paystack could not start the transfer. Your items are still in the basket.");
+        return;
       }
+
+      if (result.success && result.order && result.checkoutUrl) {
+        if (onOrderCreated) onOrderCreated(result.order.id);
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
+
+      onClose();
+      onReturnToBasket?.(
+        result.error || "Paystack could not start the transfer. Your items are still in the basket."
+      );
     });
   };
 

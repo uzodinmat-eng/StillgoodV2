@@ -74,7 +74,12 @@ function hydrate(row: ManualRefundRow): ManualItemRefund {
 
 export async function listManualRefunds(status: ManualRefundStatus): Promise<ManualItemRefund[]> {
   const rows = await query<ManualRefundRow>(
-    `select ${MANUAL_COLUMNS} from public.manual_item_refunds m left join public.customers c on c.id = m.customer_id where m.status = $1 order by m.created_at desc limit 200`,
+    `select ${MANUAL_COLUMNS}
+     from public.manual_item_refunds m
+     left join public.customers c on c.id = m.customer_id
+     join public.order_items oi on oi.id = m.order_item_id
+     where m.status = $1 and oi.fulfillment_status = 'unavailable'
+     order by m.created_at desc limit 200`,
     [status]
   );
   return rows.map(hydrate);

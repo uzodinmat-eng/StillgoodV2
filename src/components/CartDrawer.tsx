@@ -25,6 +25,7 @@ interface CartDrawerProps {
   cartSummary: CartSummary;
   onProceedToCheckout: () => void;
   onCartChanged?: (summary: CartSummary) => void;
+  notice?: string | null;
 }
 
 export function CartDrawer({
@@ -33,6 +34,7 @@ export function CartDrawer({
   cartSummary,
   onProceedToCheckout,
   onCartChanged,
+  notice,
 }: CartDrawerProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -126,6 +128,12 @@ export function CartDrawer({
               </button>
             </div>
           </div>
+
+          {notice && (
+            <div className="px-4 sm:px-5 py-3 bg-amber-50 border-b border-amber-200 text-xs font-bold text-amber-900">
+              {notice}
+            </div>
+          )}
 
           {/* Cart Body */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6">

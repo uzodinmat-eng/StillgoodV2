@@ -535,7 +535,9 @@ export function StorePortalView({
                         });
                         setWithdrawMessage(
                           result.success
-                            ? `Sent ${formatNaira(result.netAmount ?? 0)} to Paystack (gross ${formatNaira(Number(withdrawAmount))}, fee ${formatNaira(result.fee ?? 0)}).`
+                            ? result.pending
+                              ? `Paystack is sending ${formatNaira(result.netAmount ?? 0)} to your bank. It stays pending until Paystack confirms the transfer.`
+                              : `Sent ${formatNaira(result.netAmount ?? 0)} to your bank (gross ${formatNaira(Number(withdrawAmount))}, fee ${formatNaira(result.fee ?? 0)}).`
                             : result.error || "Withdrawal failed."
                         );
                         if (result.success) {

@@ -95,8 +95,8 @@ export async function refundPaystackTransaction(input: {
   });
 }
 
-export async function initiatePaystackTransfer(input: { amountNaira: number; recipientCode: string; reference: string; reason: string }): Promise<{ transfer_code: string }> {
-  return paystackRequest<{ transfer_code: string }>("/transfer", {
+export async function initiatePaystackTransfer(input: { amountNaira: number; recipientCode: string; reference: string; reason: string }): Promise<{ transfer_code: string; status: string }> {
+  return paystackRequest<{ transfer_code: string; status: string }>("/transfer", {
     method: "POST",
     body: JSON.stringify({ source: "balance", amount: Math.round(input.amountNaira * 100), recipient: input.recipientCode, reference: input.reference, reason: input.reason }),
   });
