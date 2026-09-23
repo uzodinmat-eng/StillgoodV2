@@ -4,16 +4,11 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Sparkles,
-  TrendingDown,
   ShieldCheck,
   Store,
   ArrowRight,
   Bike,
 } from "lucide-react";
-
-interface HeroBannerProps {
-  onExploreDeals: () => void;
-}
 
 /**
  * Typewriter "Save Big in <location>" — types one word, holds it 5 seconds,
@@ -74,7 +69,7 @@ function RotatingLocation() {
   );
 }
 
-export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
+export function HeroBanner() {
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-900 text-white p-6 sm:p-10 lg:p-12 border border-emerald-800/40 shadow-2xl mb-8">
       
@@ -91,10 +86,6 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
             <span>Stillgood Marketplace</span>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-full text-xs font-black">
-            <TrendingDown className="w-3.5 h-3.5" />
-            <span>Weekly Dynamic Price Drift</span>
-          </div>
         </div>
 
         {/* Main Headline */}
@@ -110,14 +101,13 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
 
         {/* CTAs */}
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onExploreDeals}
-            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-2xl shadow-xl shadow-emerald-500/20 transition-all cursor-pointer hover:scale-102 active:scale-98"
+          <Link
+            href="/shop"
+            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-2xl shadow-xl shadow-emerald-500/20 transition-all hover:scale-102 active:scale-98"
           >
             <span>Shop Today&apos;s Rescue Deals</span>
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
 
           <Link
             href="/stores"
@@ -142,11 +132,11 @@ export function HeroBanner({ onExploreDeals }: HeroBannerProps) {
 
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 shrink-0">
-              <TrendingDown className="w-4 h-4" />
+              <Store className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white">Weekly Drift</p>
-              <p className="text-[11px] text-amber-200/70">Prices drop every 7 days</p>
+              <p className="text-xs font-bold text-white">Store-set prices</p>
+              <p className="text-[11px] text-amber-200/70">Pay the price on the item</p>
             </div>
           </div>
 

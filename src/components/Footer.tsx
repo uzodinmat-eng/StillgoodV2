@@ -50,7 +50,7 @@ export function Footer() {
             <span className="text-base font-black text-white">Stillgood</span>
           </div>
           <p className="text-slate-400 leading-relaxed">
-            Nigeria&apos;s pioneering marketplace dedicated to eliminating retail food waste. Premium surplus food at fair, decaying prices.
+            Nigeria&apos;s marketplace for surplus groceries from verified stores. The price on the item is the price you pay.
           </p>
           <div className="pt-1 text-[11px] text-emerald-400 font-bold">
             Order Format: SG-XXXXX (Verified Pickup)
@@ -78,8 +78,8 @@ export function Footer() {
           </h4>
           <ul className="space-y-1.5 text-slate-400">
             <li>
-              <Link href="/#drift-pricing" className="hover:text-emerald-400 transition-colors">
-                Weekly Drift Pricing
+              <Link href="/shop" className="hover:text-emerald-400 transition-colors">
+                Shop rescue deals
               </Link>
             </li>
             <li>

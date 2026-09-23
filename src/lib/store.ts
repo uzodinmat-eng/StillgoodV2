@@ -193,13 +193,6 @@ export async function createProductAction(
     if (!input.currentPrice || input.currentPrice <= 0) {
       return { success: false, error: "Enter the current selling price." };
     }
-    const hasOriginal = (input.originalPrice ?? 0) > 0;
-    if (hasOriginal && (input.baseDiscountPercent ?? 0) < 0) {
-      return { success: false, error: "Discount cannot be negative." };
-    }
-    if (hasOriginal && (input.baseDiscountPercent ?? 0) > 95) {
-      return { success: false, error: "Discount must be between 0% and 95%." };
-    }
     if (input.expiryDate) {
       const expiry = new Date(`${input.expiryDate}T23:59:59`);
       const today = new Date();
@@ -219,7 +212,7 @@ export async function createProductAction(
       unit: input.unit,
       images: input.images,
       originalPrice: input.originalPrice ?? null,
-      baseDiscountPercent: input.baseDiscountPercent ?? null,
+      baseDiscountPercent: null,
       currentPrice: input.currentPrice,
       dateType: input.dateType,
       expiryDate: input.expiryDate,
@@ -269,7 +262,7 @@ export async function updateProductAction(
       unit: input.unit,
       images: input.images,
       originalPrice: input.originalPrice ?? null,
-      baseDiscountPercent: input.baseDiscountPercent ?? null,
+      baseDiscountPercent: null,
       currentPrice: input.currentPrice,
       dateType: input.dateType,
       expiryDate: input.expiryDate,

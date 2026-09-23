@@ -178,11 +178,6 @@ export function CheckoutModal({
         return;
       }
 
-      if (!fresh.bankVerified) {
-        setErrorMsg("Save and verify your refund bank account before checkout.");
-        return;
-      }
-
       const result = await createOrder({
         customerName: name,
         customerEmail: email,
@@ -491,10 +486,11 @@ export function CheckoutModal({
                 className="p-3 rounded-2xl border text-left bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-base">💳</span>
-                  <span className="text-xs font-black text-slate-900">Paystack</span>
+                  <span className="text-xs font-black text-slate-900">Pay with transfer</span>
                 </div>
-                <p className="text-[10px] text-slate-500 font-medium mt-0.5">Cards, USSD, Transfer</p>
+                <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                  Bank transfer only. If an item is unavailable, Paystack refunds the account that sent the transfer.
+                </p>
               </button>
             </div>
           </div>

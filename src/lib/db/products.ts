@@ -1,9 +1,5 @@
 import { DateType, Product } from "@/lib/types";
-import {
-  calculateDriftPrice,
-  generateDriftSchedule,
-  getDaysRemaining,
-} from "@/lib/pricing";
+import { getDaysRemaining, listedPrice } from "@/lib/pricing";
 import { asInt, dateOnly, execute, query, queryOne } from "./client";
 
 interface ProductRow {
@@ -47,42 +43,12 @@ function asDateType(value: string): DateType {
 export function hydrateProductRow(row: ProductRow): Product {
   const expiryDate = dateOnly(row.expiry_date);
   const listedAt = dateOnly(row.listed_at);
-  const originalPrice = row.original_price === null ? null : asInt(row.original_price);
-  const baseDiscountPercent = row.base_discount_percent === null
-    ? null
-    : Number(row.base_discount_percent);
-  const manualCurrentPrice = row.current_price === null ? null : asInt(row.current_price);
-  const driftRateWeekly = Number(row.drift_rate_weekly) || 0.025;
+  const prices = listedPrice({
+    originalPrice: row.original_price === null ? null : asInt(row.original_price),
+    currentPrice: row.current_price === null ? null : asInt(row.current_price),
+  });
   const stockQuantity = asInt(row.stock_quantity);
   const daysRemaining = getDaysRemaining(expiryDate);
-
-  // When the store supplied a current price directly (no original price),
-  // that price is authoritative and no drift/markdown model applies.
-  const hasOriginal = originalPrice !== null && originalPrice > 0;
-  const currentPrice = hasOriginal
-    ? calculateDriftPrice({
-        originalPrice: originalPrice as number,
-        baseDiscountPercent: baseDiscountPercent ?? 0,
-        listedAt,
-        weeklyDriftRate: driftRateWeekly,
-      }).currentPrice
-    : Math.max(0, manualCurrentPrice ?? 0);
-
-  const discountPercent = hasOriginal
-    ? Math.round(
-        (((originalPrice as number) - currentPrice) / (originalPrice as number)) * 1000
-      ) / 10
-    : 0;
-
-  const driftSchedule = hasOriginal
-    ? generateDriftSchedule({
-        originalPrice: originalPrice as number,
-        baseDiscountPercent: baseDiscountPercent ?? 0,
-        listedAt,
-        expiryDate,
-        weeklyDriftRate: driftRateWeekly,
-      })
-    : [];
 
   return {
     id: row.id,
@@ -94,16 +60,16 @@ export function hydrateProductRow(row: ProductRow): Product {
     description: row.description,
     unit: row.unit,
     images: Array.isArray(row.images) ? row.images : [],
-    originalPrice: originalPrice ?? 0,
-    baseDiscountPercent: baseDiscountPercent ?? 0,
-    currentPrice,
-    discountPercent,
+    originalPrice: prices.originalPrice,
+    baseDiscountPercent: 0,
+    currentPrice: prices.currentPrice,
+    discountPercent: prices.discountPercent,
     dateType: asDateType(row.date_type),
     expiryDate,
     daysRemaining,
     listedAt,
-    driftRateWeekly,
-    driftSchedule,
+    driftRateWeekly: 0,
+    driftSchedule: [],
     stockQuantity,
     isAvailable: stockQuantity > 0 && daysRemaining > 0,
     featured: Boolean(row.featured),
@@ -210,7 +176,7 @@ export async function insertProduct(input: {
       input.unit.trim(),
       images,
       hasOriginal ? input.originalPrice : null,
-      hasOriginal ? input.baseDiscountPercent : null,
+      null,
       Math.max(0, Math.round(input.currentPrice)),
       input.dateType,
       input.expiryDate,
@@ -281,9 +247,7 @@ export async function updateProduct(
       input.originalPrice !== undefined
         ? ((input.originalPrice ?? 0) > 0 ? input.originalPrice : null)
         : (current.originalPrice > 0 ? current.originalPrice : null),
-      input.baseDiscountPercent !== undefined
-        ? ((input.originalPrice ?? 0) > 0 ? input.baseDiscountPercent : null)
-        : (current.originalPrice > 0 ? current.baseDiscountPercent : null),
+      null,
       input.currentPrice !== undefined
         ? Math.max(0, Math.round(input.currentPrice))
         : null,

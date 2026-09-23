@@ -11,10 +11,7 @@ import {
   Plus,
   ShoppingBag,
   ShieldCheck,
-  TrendingDown,
   Check,
-  Sparkles,
-  Building2,
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { CartDrawer } from "@/components/CartDrawer";
@@ -24,11 +21,7 @@ import { Footer } from "@/components/Footer";
 import { addToCart, getCart } from "@/lib/actions";
 import { useCategoryById, useStoreById } from "@/components/CatalogProvider";
 import { CartSummary, Product } from "@/lib/types";
-import {
-  calculateDriftPrice,
-  formatNaira,
-  getUrgencyBadge,
-} from "@/lib/pricing";
+import { formatNaira, getUrgencyBadge } from "@/lib/pricing";
 
 interface ProductDetailViewProps {
   product: Product;
@@ -54,12 +47,7 @@ export function ProductDetailView({
   const store = useStoreById(product.storeId);
   const category = useCategoryById(product.category);
   const urgency = getUrgencyBadge(product.daysRemaining, product.dateType);
-  const drift = calculateDriftPrice({
-    originalPrice: product.originalPrice,
-    baseDiscountPercent: product.baseDiscountPercent,
-    listedAt: product.listedAt,
-    weeklyDriftRate: product.driftRateWeekly,
-  });
+  const showMarkdown = product.originalPrice > product.currentPrice;
 
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
@@ -130,7 +118,7 @@ export function ProductDetailView({
 
       <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 space-y-8">
         <Link
-          href="/"
+          href="/shop"
           className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-emerald-700"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -148,10 +136,13 @@ export function ProductDetailView({
               className="object-cover"
             />
             <div className="absolute top-3 left-3 right-3 flex items-start justify-between gap-2">
-              <div className="inline-flex items-center gap-1 bg-emerald-600 text-white px-2.5 py-1 rounded-xl text-xs font-black shadow-md">
-                <TrendingDown className="w-3.5 h-3.5" />
-                <span>-{product.discountPercent}%</span>
-              </div>
+              {showMarkdown ? (
+                <div className="inline-flex items-center gap-1 bg-emerald-600 text-white px-2.5 py-1 rounded-xl text-xs font-black shadow-md">
+                  <span>-{product.discountPercent}%</span>
+                </div>
+              ) : (
+                <span />
+              )}
               <span className="inline-flex items-center bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
                 {storageLabel}
               </span>
@@ -190,13 +181,13 @@ export function ProductDetailView({
                 <span className="text-3xl font-black text-slate-900 tracking-tight">
                   {formatNaira(product.currentPrice)}
                 </span>
-                {product.originalPrice > product.currentPrice && (
+                {showMarkdown && (
                   <span className="text-sm text-slate-400 line-through font-semibold">
                     {formatNaira(product.originalPrice)}
                   </span>
                 )}
               </div>
-              {product.originalPrice > product.currentPrice && (
+              {showMarkdown && (
                 <p className="text-xs font-bold text-emerald-700 mt-1">
                   You save {formatNaira(product.originalPrice - product.currentPrice)}{" "}
                   vs supermarket shelf
@@ -207,27 +198,6 @@ export function ProductDetailView({
             <p className="text-sm text-slate-600 leading-relaxed">
               {product.description}
             </p>
-
-            <button
-              type="button"
-              className="w-full flex items-center justify-between p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 text-left cursor-pointer"
-            >
-              <span className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-emerald-600 text-white">
-                  <TrendingDown className="w-3.5 h-3.5" />
-                </span>
-                <span>
-                  <span className="block text-[11px] font-black text-emerald-950">
-                    Weekly drift pricing
-                  </span>
-                  <span className="block text-[11px] text-emerald-800 font-medium">
-                    Next drop in {drift.nextDropDays} day
-                    {drift.nextDropDays === 1 ? "" : "s"} · floor 85% off
-                  </span>
-                </span>
-              </span>
-              <span className="text-[11px] font-bold text-emerald-800">Schedule</span>
-            </button>
 
             {store ? (
               <Link
@@ -335,40 +305,6 @@ export function ProductDetailView({
             </div>
           </div>
         </div>
-
-        {product.driftSchedule && product.driftSchedule.length > 0 ? (
-          <section className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-3">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-emerald-600" />
-              <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                Drift timeline
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-              {product.driftSchedule.map((step) => (
-                <div
-                  key={`${step.label}-${step.date}`}
-                  className={`rounded-2xl border p-3 ${
-                    step.isCurrent
-                      ? "border-emerald-400 bg-emerald-50"
-                      : "border-slate-200 bg-slate-50"
-                  }`}
-                >
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    {step.label}
-                  </p>
-                  <p className="text-sm font-black text-slate-900 mt-1">
-                    {formatNaira(step.price)}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {step.discountPercent}% off · {step.date}
-                    {step.isCurrent ? " · now" : ""}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
 
         {relatedProducts.length > 0 ? (
           <section className="space-y-4">

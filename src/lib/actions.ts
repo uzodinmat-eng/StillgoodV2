@@ -369,10 +369,6 @@ export async function createOrder(data: {
     return { success: false, error: "Create an account or log in before placing an order." };
   }
 
-  if (!session.bankVerified) {
-    return { success: false, error: "Save and verify your refund bank account before checkout." };
-  }
-
   if (data.paymentMethod !== "paystack") {
     return { success: false, error: "Paystack is the only supported payment method." };
   }

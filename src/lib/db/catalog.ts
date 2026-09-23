@@ -4,11 +4,7 @@ import {
   findStoreInCatalog,
 } from "@/lib/catalog";
 import { Category, DateType, Product, Store, StoreReviewData } from "@/lib/types";
-import {
-  calculateDriftPrice,
-  generateDriftSchedule,
-  getDaysRemaining,
-} from "@/lib/pricing";
+import { getDaysRemaining, listedPrice } from "@/lib/pricing";
 import { asInt, dateOnly, query } from "./client";
 
 export type { CatalogSnapshot } from "@/lib/catalog";
@@ -63,8 +59,9 @@ interface ProductRow {
   description: string;
   unit: string;
   images: string[] | null;
-  original_price: number | string;
-  base_discount_percent: number | string;
+  original_price: number | string | null;
+  current_price: number | string | null;
+  base_discount_percent: number | string | null;
   date_type: string;
   expiry_date: Date | string;
   listed_at: Date | string;
@@ -109,24 +106,12 @@ function asStoreArea(value: string): Store["area"] {
 function hydrateProduct(row: ProductRow): Product {
   const expiryDate = dateOnly(row.expiry_date);
   const listedAt = dateOnly(row.listed_at);
-  const originalPrice = asInt(row.original_price);
-  const baseDiscountPercent = Number(row.base_discount_percent);
-  const driftRateWeekly = Number(row.drift_rate_weekly) || 0.025;
+  const prices = listedPrice({
+    originalPrice: row.original_price === null ? null : asInt(row.original_price),
+    currentPrice: row.current_price === null ? null : asInt(row.current_price),
+  });
   const stockQuantity = asInt(row.stock_quantity);
   const daysRemaining = getDaysRemaining(expiryDate);
-  const driftResult = calculateDriftPrice({
-    originalPrice,
-    baseDiscountPercent,
-    listedAt,
-    weeklyDriftRate: driftRateWeekly,
-  });
-  const driftSchedule = generateDriftSchedule({
-    originalPrice,
-    baseDiscountPercent,
-    listedAt,
-    expiryDate,
-    weeklyDriftRate: driftRateWeekly,
-  });
 
   return {
     id: row.id,
@@ -138,16 +123,16 @@ function hydrateProduct(row: ProductRow): Product {
     description: row.description,
     unit: row.unit,
     images: Array.isArray(row.images) ? row.images : [],
-    originalPrice,
-    baseDiscountPercent,
-    currentPrice: driftResult.currentPrice,
-    discountPercent: driftResult.totalDiscountPercent,
+    originalPrice: prices.originalPrice,
+    baseDiscountPercent: 0,
+    currentPrice: prices.currentPrice,
+    discountPercent: prices.discountPercent,
     dateType: asDateType(row.date_type),
     expiryDate,
     daysRemaining,
     listedAt,
-    driftRateWeekly,
-    driftSchedule,
+    driftRateWeekly: 0,
+    driftSchedule: [],
     stockQuantity,
     isAvailable: stockQuantity > 0 && daysRemaining > 0,
     featured: Boolean(row.featured),
@@ -218,7 +203,7 @@ export async function loadCatalog(): Promise<CatalogSnapshot> {
       ),
       query<ProductRow>(
         `select id, name, brand, slug, category_id, store_id, description, unit,
-                images, original_price, base_discount_percent, date_type,
+                images, original_price, current_price, base_discount_percent, date_type,
                 expiry_date, listed_at, drift_rate_weekly, stock_quantity,
                 featured, storage_condition, nafdac_reg_no, condition_notes,
                 nutritional_highlights

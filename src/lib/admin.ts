@@ -6,6 +6,8 @@ import { customerIsAdmin } from "./auth-utils";
 import { execute, queryOne } from "./db/client";
 import { getAdminStats, AdminStats, AdminStatsFilters } from "./db/admin-stats";
 import { listManualRefunds, ManualItemRefund, markManualRefund } from "./db/manual-refunds";
+import { findOrderPayment } from "./db/payments";
+import { refundPaystackTransaction } from "./paystack";
 import { getUnreadCounts, listStoreThread, markThreadRead, sendStoreMessage, StoreMessage, UnreadCounts } from "./db/messages";
 import { listAllOrders } from "./db/orders";
 import { insertStore, listStores, STORE_AREAS, updateStoreStatus } from "./db/stores";
@@ -473,7 +475,7 @@ export async function createStoreAction(
   }
 }
 
-// Manual item refunds are paid outside the app from the company balance.
+// Item refunds are sent through Paystack back to the account that paid.
 export async function markItemRefundSentAction(
   refundId: string
 ): Promise<{ success: boolean; error?: string }> {
@@ -490,14 +492,41 @@ export async function markItemRefundSentAction(
   const id = refundId.trim();
   if (!id) return { success: false, error: "Missing refund id." };
 
+  const refund = await queryOne<{
+    order_id: string;
+    amount: number | string;
+    status: string;
+    product_name: string;
+  }>(
+    `select order_id, amount, status, product_name from public.manual_item_refunds where id = $1`,
+    [id]
+  );
+  if (!refund || refund.status !== "pending") {
+    return { success: false, error: "That refund is no longer pending." };
+  }
+
+  const payment = await findOrderPayment(refund.order_id);
+  if (!payment?.gatewayReference || payment.status !== "success") {
+    return { success: false, error: "This order has no successful Paystack transfer to refund." };
+  }
+
   try {
+    const result = await refundPaystackTransaction({
+      reference: payment.gatewayReference,
+      amountNaira: Number(refund.amount),
+      customerNote: `Refund for ${refund.product_name}`,
+      merchantNote: `Unavailable item refund ${id}`,
+    });
+    if (result.status === "failed") {
+      return { success: false, error: "Paystack could not send this refund to the paying account." };
+    }
     await markManualRefund(id, "sent", admin.id);
     revalidatePath("/admin");
     return { success: true };
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Could not update the refund.",
+      error: error instanceof Error ? error.message : "Could not refund this transfer.",
     };
   }
 }

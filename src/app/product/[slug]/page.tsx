@@ -22,7 +22,9 @@ export async function generateMetadata({
   }
   return {
     title: `${product.name} | Stillgood`,
-    description: `${product.discountPercent}% off ${product.brand} at a verified Abuja supermarket. ${product.description}`,
+    description: product.discountPercent > 0
+      ? `${product.discountPercent}% off ${product.brand} at a verified Abuja supermarket. ${product.description}`
+      : `${product.brand} at a verified Abuja supermarket. ${product.description}`,
   };
 }
 

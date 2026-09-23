@@ -46,6 +46,7 @@ export async function initializePaystackTransaction(input: {
       reference: input.reference,
       callback_url: input.callbackUrl,
       metadata: input.metadata,
+      channels: ["bank_transfer"],
     }),
   });
 }
@@ -74,6 +75,24 @@ export function verifyPaystackWebhook(rawBody: string, signature: string | null)
   if (!signature || !process.env.PAYSTACK_SECRET_KEY) return false;
   const digest = crypto.createHmac("sha512", process.env.PAYSTACK_SECRET_KEY).update(rawBody).digest("hex");
   return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
+}
+
+export async function refundPaystackTransaction(input: {
+  reference: string;
+  amountNaira: number;
+  customerNote: string;
+  merchantNote: string;
+}): Promise<{ id: number; status: string }> {
+  return paystackRequest<{ id: number; status: string }>("/refund", {
+    method: "POST",
+    body: JSON.stringify({
+      transaction: input.reference,
+      amount: Math.round(input.amountNaira * 100),
+      currency: "NGN",
+      customer_note: input.customerNote,
+      merchant_note: input.merchantNote,
+    }),
+  });
 }
 
 export async function initiatePaystackTransfer(input: { amountNaira: number; recipientCode: string; reference: string; reason: string }): Promise<{ transfer_code: string }> {

@@ -1294,7 +1294,7 @@ export function AdminView({
                 Item refunds ({pendingRefunds.length} pending)
               </h2>
               <p className="text-xs text-slate-500">
-                Unavailable items appear here after the pickup PIN finalizes the order. Send the amount manually from the company balance, then mark it sent.
+                Unavailable items appear here after the pickup PIN, or right away when the store cancels the order because nothing is left to collect. Mark sent to refund the item through Paystack, back to the bank account that paid.
               </p>
               {refundMsg && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
@@ -1353,7 +1353,7 @@ export function AdminView({
                                   onClick={() => handleMarkSent(refund)}
                                   className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] disabled:opacity-50"
                                 >
-                                  {busy ? "…" : "Mark sent"}
+                                  {busy ? "…" : "Refund"}
                                 </button>
                                 <button
                                   type="button"

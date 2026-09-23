@@ -202,6 +202,20 @@ export function calculateSavings(originalPrice: number, currentPrice: number, qu
   return Math.max(0, (originalPrice - currentPrice) * quantity);
 }
 
+/** Store-entered prices. The percent is the drop from original to current, and only exists when both prices are present and original is higher. */
+export function listedPrice(input: {
+  originalPrice: number | null;
+  currentPrice: number | null;
+}): { originalPrice: number; currentPrice: number; discountPercent: number } {
+  const originalPrice = input.originalPrice && input.originalPrice > 0 ? Math.round(input.originalPrice) : 0;
+  const currentPrice = Math.max(0, Math.round(input.currentPrice ?? 0));
+  const discountPercent =
+    originalPrice > currentPrice
+      ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100)
+      : 0;
+  return { originalPrice, currentPrice, discountPercent };
+}
+
 /**
  * Store withdrawal fee: 1% of the gross amount, capped at ₦5,000.
  * Returns the fee plus the net Paystack transfer amount.

@@ -70,7 +70,7 @@ export function ProductCard({
           
           {/* Storage Condition Badge */}
           <span className="inline-flex items-center gap-1 bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
-            {product.storageCondition === "frozen" ? "🧊 Frozen" : product.storageCondition === "chilled" ? "❄️ Chilled" : "📦 Ambient"}
+            {product.storageCondition === "frozen" ? "Frozen" : product.storageCondition === "chilled" ? "Chilled" : "Ambient"}
           </span>
         </div>
 
@@ -115,8 +115,20 @@ export function ProductCard({
         <div className="pt-3 border-t border-slate-100 space-y-3">
           
           {/* Price Numbers */}
-          <div className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-            {formatNaira(product.currentPrice)}
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+              {formatNaira(product.currentPrice)}
+            </span>
+            {product.originalPrice > product.currentPrice && (
+              <>
+                <span className="text-sm font-semibold text-slate-400 line-through">
+                  {formatNaira(product.originalPrice)}
+                </span>
+                <span className="text-[11px] font-black text-emerald-700">
+                  -{product.discountPercent}%
+                </span>
+              </>
+            )}
           </div>
 
           {/* Quantity + Add to Cart */}

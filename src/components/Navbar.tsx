@@ -2,10 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { 
   ShoppingBag, 
   MapPin, 
-  TrendingDown, 
   Store as StoreIcon, 
   CheckCircle2,
   Menu,
@@ -36,7 +36,15 @@ export function Navbar({
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isCityMenuOpen, setIsCityMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const router = useRouter();
   const { customer, loading: sessionLoading } = useSession();
+
+  const selectStore = (storeId: string) => {
+    if (onSelectStore) onSelectStore(storeId);
+    else router.push(storeId === "all" ? "/shop" : `/shop?store=${encodeURIComponent(storeId)}`);
+    setIsStoreMenuOpen(false);
+    setMobileMenuOpen(false);
+  };
 
   const stores = useStores();
   const currentStore = stores.find((s) => s.id === selectedStoreId);
@@ -56,11 +64,6 @@ export function Navbar({
           </div>
 
           <div className="flex items-center gap-4 shrink-0 text-xs">
-            <div className="flex items-center gap-1.5 text-emerald-300">
-              <TrendingDown className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden md:inline text-emerald-200">Dynamic Pricing:</span>
-              <span className="font-semibold text-amber-300">Drops Weekly</span>
-            </div>
             <Link
               href="/stores"
               className="text-emerald-300 hover:text-white underline underline-offset-2 hidden md:inline"
@@ -168,10 +171,7 @@ export function Navbar({
                     </div>
                     <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
                       <button
-                        onClick={() => {
-                          if (onSelectStore) onSelectStore("all");
-                          setIsStoreMenuOpen(false);
-                        }}
+                        onClick={() => selectStore("all")}
                         className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl text-left font-medium transition-colors ${
                           selectedStoreId === "all"
                             ? "bg-emerald-50 text-emerald-900 font-bold"
@@ -190,10 +190,7 @@ export function Navbar({
                       {stores.map((store) => (
                         <button
                           key={store.id}
-                          onClick={() => {
-                            if (onSelectStore) onSelectStore(store.id);
-                            setIsStoreMenuOpen(false);
-                          }}
+                          onClick={() => selectStore(store.id)}
                           className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl text-left transition-colors ${
                             selectedStoreId === store.id
                               ? "bg-emerald-50 text-emerald-900 font-bold"
@@ -223,11 +220,11 @@ export function Navbar({
             {/* Right Action Icons & Cart — z-20 so search overflow cannot swallow clicks */}
             <div className="relative z-20 flex items-center gap-2 sm:gap-3 shrink-0">
               <Link
-                href="/stores"
+                href="/shop"
                 className="hidden md:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-700 px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"
               >
-                <StoreIcon className="w-4 h-4 text-slate-500" />
-                <span>Stores</span>
+                <ShoppingBag className="w-4 h-4 text-slate-500" />
+                <span>Shop</span>
               </Link>
 
               <Link
@@ -305,10 +302,7 @@ export function Navbar({
               </p>
               <select
                 value={selectedStoreId}
-                onChange={(e) => {
-                  if (onSelectStore) onSelectStore(e.target.value);
-                  setMobileMenuOpen(false);
-                }}
+                onChange={(e) => selectStore(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-800"
               >
                 <option value="all">All Partner Stores</option>
@@ -322,12 +316,12 @@ export function Navbar({
 
             <div className="grid grid-cols-2 gap-2 pt-1">
               <Link
-                href="/stores"
+                href="/shop"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-700"
               >
-                <StoreIcon className="w-4 h-4 text-emerald-600" />
-                <span>Stores</span>
+                <ShoppingBag className="w-4 h-4 text-emerald-600" />
+                <span>Shop</span>
               </Link>
               <Link
                 href="/store"

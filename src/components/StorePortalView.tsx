@@ -83,8 +83,7 @@ export function StorePortalView({
   const [description, setDescription] = useState("");
   const [unit, setUnit] = useState("1 unit");
   const [currentPrice, setCurrentPrice] = useState<number>(1000);
-  const [originalPrice, setOriginalPrice] = useState<number | "">(1000);
-  const [baseDiscountPercent, setBaseDiscountPercent] = useState<number | "">(35);
+  const [originalPrice, setOriginalPrice] = useState<number | "">("");
   const [dateType, setDateType] = useState<DateType>("best_before");
   const [expiryDate, setExpiryDate] = useState("");
   const [stockQuantity, setStockQuantity] = useState<number>(5);
@@ -120,7 +119,6 @@ export function StorePortalView({
     setUnit("1 unit");
     setCurrentPrice(1000);
     setOriginalPrice("");
-    setBaseDiscountPercent("");
     setDateType("best_before");
     setExpiryDate(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
     setStockQuantity(5);
@@ -146,7 +144,6 @@ export function StorePortalView({
     setUnit(p.unit);
     setCurrentPrice(p.currentPrice);
     setOriginalPrice(p.originalPrice > 0 ? p.originalPrice : "");
-    setBaseDiscountPercent(p.originalPrice > 0 ? p.baseDiscountPercent : "");
     setDateType(p.dateType);
     setExpiryDate(p.expiryDate);
     setStockQuantity(p.stockQuantity);
@@ -178,16 +175,10 @@ export function StorePortalView({
       setFormError("Original shelf price must be empty or greater than 0.");
       return;
     }
-    if (baseDiscountPercent !== "" && (baseDiscountPercent < 0 || baseDiscountPercent > 95)) {
-      setFormError("Markdown must be between 0% and 95%.");
-      return;
-    }
-
-    // Optional pricing: empty fields mean "no original shelf price".
     const pricePatch = {
       currentPrice,
       originalPrice: originalPrice === "" ? null : originalPrice,
-      baseDiscountPercent: baseDiscountPercent === "" ? null : baseDiscountPercent,
+      baseDiscountPercent: null,
     };
 
     startTransition(async () => {
@@ -610,7 +601,7 @@ export function StorePortalView({
                   <div>
                     <h2 className="text-xl font-black text-slate-900">Live Inventory & Deals</h2>
                     <p className="text-xs text-slate-500">
-                      Items listed here automatically decay in price weekly and appear in Stillgood search and catalog.
+                      Listed items appear in the shop at the current price you enter.
                     </p>
                   </div>
 
@@ -687,9 +678,10 @@ export function StorePortalView({
                               </td>
                               <td className="py-3 px-3">
                                 <p className="font-black text-slate-900">{formatNaira(p.currentPrice)}</p>
-                                {p.originalPrice > 0 && (
-                                  <p className="text-[10px] text-slate-400 line-through">
-                                    {formatNaira(p.originalPrice)} (-{p.discountPercent}%)
+                                {p.originalPrice > p.currentPrice && (
+                                  <p className="text-[10px] text-slate-400">
+                                    <span className="line-through">{formatNaira(p.originalPrice)}</span>
+                                    {" "}(-{p.discountPercent}%)
                                   </p>
                                 )}
                               </td>
@@ -1103,7 +1095,7 @@ export function StorePortalView({
                 {editingProduct ? `Edit ${editingProduct.name}` : "List Short-Dated Item on Marketplace"}
               </h3>
               <p className="text-xs text-slate-500">
-                Item price decays automatically weekly as it approaches Best-Before / Expiry.
+                Current price is required. Original shelf price is optional and only used to show the markdown.
               </p>
             </div>
 
@@ -1235,26 +1227,6 @@ export function StorePortalView({
                     placeholder="e.g. 5000"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
                   />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                    Base Markdown % (Optional)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={95}
-                    value={baseDiscountPercent}
-                    onChange={(e) =>
-                      setBaseDiscountPercent(e.target.value === "" ? "" : Number(e.target.value))
-                    }
-                    placeholder="e.g. 40"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-                    Used for weekly price drift when an original price is given.
-                  </span>
                 </div>
 
                 <div>
