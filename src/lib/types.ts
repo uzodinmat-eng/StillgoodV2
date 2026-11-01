@@ -23,16 +23,48 @@ export interface StoreReviewData {
   reviews: StoreReview[];
 }
 
-export const STORE_AREAS: Store["area"][] = [
-  "Wuse II",
-  "Maitama",
-  "Garki",
-  "Jabi",
-  "Utako",
+const STORE_AREA_NAMES = [
+  "Abuja",
+  "Apo",
+  "Asokoro",
+  "Bwari",
   "Central Area",
-  "Jahi",
+  "Dawaki",
+  "Dei-Dei",
+  "Durumi",
+  "Galadimawa",
+  "Garki",
+  "Gudu",
+  "Guzape",
+  "Gwagwalada",
   "Gwarinpa",
-];
+  "Idu",
+  "Jabi",
+  "Jahi",
+  "Jikwoyi",
+  "Kado",
+  "Karu",
+  "Katampe",
+  "Kubwa",
+  "Kuje",
+  "Life Camp",
+  "Lokogoma",
+  "Lugbe",
+  "Mabushi",
+  "Maitama",
+  "Mpape",
+  "Nyanya",
+  "Utako",
+  "Wuse II",
+  "Wuye",
+] as const;
+
+export type StoreArea = (typeof STORE_AREA_NAMES)[number];
+
+/** Shown first on store signup. "Abuja" means the store is in Abuja generally. */
+export const DEFAULT_STORE_AREA: StoreArea = "Abuja";
+
+export const STORE_AREAS: StoreArea[] = [...STORE_AREA_NAMES].sort((a, b) => a.localeCompare(b));
 
 export type StoreStatus = "pending" | "approved" | "suspended";
 
@@ -40,7 +72,7 @@ export interface Store {
   id: string;
   name: string;
   slug: string;
-  area: "Wuse II" | "Maitama" | "Garki" | "Jabi" | "Utako" | "Central Area" | "Jahi" | "Gwarinpa";
+  area: StoreArea;
   address: string;
   phone: string;
   rating: number;

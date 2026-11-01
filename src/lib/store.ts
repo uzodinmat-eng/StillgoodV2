@@ -9,7 +9,8 @@ import { customerIsAdmin } from "./auth-utils";
 import { loadCatalog } from "./db/catalog";
 import { completeStorePickup, decideStoreOrderItem, findOrdersForStore } from "./db/orders";
 import { findProductById, findProductsForStore, insertProduct, updateProduct } from "./db/products";
-import { createStoreWithdrawal, findStoreById, findStoreByOwnerId, getStoreBalances, listStores, markStoreWithdrawal, noteStoreWithdrawalSubmitted, saveStorePayoutRecipient } from "./db/stores";
+import { createStoreWithdrawal, findStoreById, findStoreByOwnerId, getStoreBalances, listStores, markStoreWithdrawal, noteStoreWithdrawalSubmitted, saveStorePayoutRecipient, updateStoreImage } from "./db/stores";
+import { validateStoreImage } from "./store-image";
 import { createServerSupabase } from "./supabase/server";
 import { listStoreThread, markThreadRead, sendStoreMessage, StoreMessage } from "./db/messages";
 import { withdrawalFeeFor } from "./pricing";
@@ -547,6 +548,21 @@ export async function markStoreThreadReadAction(
       success: false,
       error: error instanceof Error ? error.message : "Could not mark the thread as read.",
     };
+  }
+}
+
+export async function updateStoreImageAction(input: { storeId: string; image: string }): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { store } = await getAuthorizedStore(input.storeId);
+    const image = input.image.trim();
+    const photoError = validateStoreImage(image);
+    if (photoError) return { success: false, error: photoError };
+    await updateStoreImage(store.id, image);
+    revalidatePath("/", "layout");
+    revalidatePath("/store");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Could not save the store photo." };
   }
 }
 

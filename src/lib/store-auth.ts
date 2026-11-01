@@ -6,6 +6,7 @@ import { normalizeNgPhone } from "./auth-utils";
 import { createServerSupabase } from "./supabase/server";
 import { findCustomerByAuthUserId, findCustomerByEmail, findCustomerByPhone, insertCustomer, saveCustomer } from "./db/customers";
 import { findStoreById, findStoreByOwnerId, insertStore, STORE_AREAS } from "./db/stores";
+import { validateStoreImage } from "./store-image";
 import { Customer, Store } from "./types";
 
 export type StoreRegistrationInput = {
@@ -20,6 +21,8 @@ export type StoreRegistrationInput = {
   storeType?: string;
   openHours?: string;
   pickupInstructions?: string;
+  /** Optional store front photo as a data URL. */
+  image?: string;
 };
 
 function friendlyRegistrationError(error: unknown): string {
@@ -62,6 +65,11 @@ export async function registerStoreAction(
   if (!ownerName) return { success: false, error: "Enter the owner or manager's full name." };
   if (!STORE_AREAS.includes(input.area)) {
     return { success: false, error: "Please select a valid Abuja area." };
+  }
+  const storePhoto = input.image?.trim() || "";
+  if (storePhoto) {
+    const photoError = validateStoreImage(storePhoto);
+    if (photoError) return { success: false, error: photoError };
   }
 
   const existingPhoneCustomer = await findCustomerByPhone(phone);
@@ -165,6 +173,9 @@ export async function registerStoreAction(
       ownerId: customer.id,
       cacNumber: input.cacNumber?.trim() || undefined,
       storeType: input.storeType?.trim() || "supermarket",
+      // The uploaded front photo also fills the banner; otherwise the store page keeps the default banner.
+      image: storePhoto || undefined,
+      bannerImage: storePhoto || undefined,
     });
   } catch (error) {
     return { success: false, error: friendlyRegistrationError(error) };

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
+  Camera,
   Clock,
   KeyRound,
   LogOut,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
 import { ProductImageCapture } from "@/components/ProductImageCapture";
+import { StorePhotoUpload } from "@/components/StorePhotoUpload";
 import { StoreMessageThread, ThreadMessage } from "@/components/StoreMessageThread";
 import { logout } from "@/lib/auth";
 import { formatNaira, withdrawalFeeFor } from "@/lib/pricing";
@@ -32,6 +34,7 @@ import {
   getStoreMessagesAction,
   markStoreThreadReadAction,
   saveStorePayoutRecipientAction,
+  updateStoreImageAction,
   sendStoreMessageAction,
   updateProductAction,
   withdrawStoreBalanceAction,
@@ -109,6 +112,11 @@ export function StorePortalView({
   const [payoutAccountName, setPayoutAccountName] = useState(store?.payoutAccountName || "");
   const [payoutAccountNumber, setPayoutAccountNumber] = useState(store?.payoutAccountNumber || "");
   const [payoutMessage, setPayoutMessage] = useState("");
+
+  // Store front photo: null until the store picks a new one to save.
+  const [newStorePhoto, setNewStorePhoto] = useState<string | null>(null);
+  const [storePhotoMessage, setStorePhotoMessage] = useState<string | null>(null);
+  const [storePhotoError, setStorePhotoError] = useState<string | null>(null);
 
   const resetForm = () => {
     setEditingProduct(null);
@@ -962,8 +970,62 @@ export function StorePortalView({
                 <div>
                   <h2 className="text-xl font-black text-slate-900">Account Security & Settings</h2>
                   <p className="text-xs text-slate-500">
-                    Update your store manager access password.
+                    Update your store photo and manager access password.
                   </p>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                      Store Photo
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Customers see this picture on the marketplace and your store page instead of the default image.
+                  </p>
+
+                  {storePhotoMessage && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold">
+                      {storePhotoMessage}
+                    </div>
+                  )}
+                  {storePhotoError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-bold">
+                      {storePhotoError}
+                    </div>
+                  )}
+
+                  <StorePhotoUpload
+                    value={newStorePhoto || store?.image || null}
+                    onChange={(value) => {
+                      setStorePhotoMessage(null);
+                      setStorePhotoError(null);
+                      setNewStorePhoto(value);
+                    }}
+                    disabled={isPending}
+                    allowRemove={false}
+                  />
+                  <button
+                    type="button"
+                    disabled={isPending || !newStorePhoto || !store}
+                    onClick={() =>
+                      startTransition(async () => {
+                        if (!store || !newStorePhoto) return;
+                        const result = await updateStoreImageAction({ storeId: store.id, image: newStorePhoto });
+                        if (!result.success) {
+                          setStorePhotoError(result.error || "Could not save the store photo.");
+                          return;
+                        }
+                        setNewStorePhoto(null);
+                        setStorePhotoMessage("Store photo saved. It now shows on the marketplace.");
+                        router.refresh();
+                      })
+                    }
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-black text-white disabled:opacity-50"
+                  >
+                    Save store photo
+                  </button>
                 </div>
 
                 <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">

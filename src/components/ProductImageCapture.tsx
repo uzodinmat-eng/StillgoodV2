@@ -19,7 +19,7 @@ const JPEG_QUALITY = 0.82;
  * Downscales any image File to a compact JPEG data URL.
  * Throws with a friendly message when the file is not a usable image.
  */
-async function compressImageFile(file: File): Promise<string> {
+export async function compressImageFile(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) {
     throw new Error("That file is not an image. Use JPG, PNG, or WebP.");
   }

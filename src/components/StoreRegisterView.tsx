@@ -4,8 +4,9 @@ import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Building2, CheckCircle2, ShieldCheck, Sparkles, Store as StoreIcon } from "lucide-react";
+import { StorePhotoUpload } from "@/components/StorePhotoUpload";
 import { registerStoreAction } from "@/lib/store-auth";
-import { Store, STORE_AREAS } from "@/lib/types";
+import { DEFAULT_STORE_AREA, Store, STORE_AREAS } from "@/lib/types";
 
 export function StoreRegisterView() {
   const router = useRouter();
@@ -16,7 +17,8 @@ export function StoreRegisterView() {
 
   // Form State
   const [businessName, setBusinessName] = useState("");
-  const [area, setArea] = useState<Store["area"]>("Wuse II");
+  const [area, setArea] = useState<Store["area"]>(DEFAULT_STORE_AREA);
+  const [storePhoto, setStorePhoto] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -43,6 +45,7 @@ export function StoreRegisterView() {
         cacNumber,
         storeType,
         openHours,
+        image: storePhoto || undefined,
       });
 
       if (!result.success) {
@@ -218,6 +221,10 @@ export function StoreRegisterView() {
                       placeholder="8:00 AM – 9:00 PM (Daily)"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none transition-all"
                     />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <StorePhotoUpload value={storePhoto} onChange={setStorePhoto} disabled={isPending} />
                   </div>
                 </div>
               </div>

@@ -368,6 +368,13 @@ export async function listStorePayouts(): Promise<StorePayout[]> {
   }));
 }
 
+export async function updateStoreImage(storeId: string, image: string): Promise<void> {
+  await execute(
+    `update public.stores set image_url = $2, banner_image_url = $2, updated_at = now() where id = $1`,
+    [storeId, image]
+  );
+}
+
 export async function saveStorePayoutRecipient(input: { storeId: string; recipientCode: string; bankName: string; accountName: string; accountNumber: string }): Promise<void> {
   await execute(`update public.stores set paystack_recipient_code = $2, payout_bank_name = $3, payout_account_name = $4, payout_account_number = $5, updated_at = now() where id = $1`, [input.storeId, input.recipientCode.trim(), input.bankName.trim(), input.accountName.trim(), input.accountNumber.trim()]);
 }
