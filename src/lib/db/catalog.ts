@@ -222,7 +222,13 @@ export async function loadCatalog(): Promise<CatalogSnapshot> {
       ),
     ]);
 
-  const products = productRows.map(hydrateProduct);
+  // Products only appear while their store is active and approved. Suspended,
+  // pending, or deleted stores drop out here, so the shop, product pages,
+  // search, and checkout all hide them. Baskets drop them in getCart().
+  const activeStoreIds = new Set(storeRows.map((row) => row.id));
+  const products = productRows
+    .filter((row) => activeStoreIds.has(row.store_id))
+    .map(hydrateProduct);
   const dealCounts = new Map<string, number>();
   const categoryCounts = new Map<string, number>();
   for (const product of products) {
