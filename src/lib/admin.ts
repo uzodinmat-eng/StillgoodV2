@@ -32,6 +32,15 @@ export type AdminStoreInput = {
 
 export type AdminDeskFilters = AdminStatsFilters;
 
+function revalidateMarketplace(): void {
+  revalidatePath("/", "layout");
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/stores");
+  revalidatePath("/admin");
+  revalidatePath("/store");
+}
+
 async function requireAdmin(): Promise<Customer> {
   const customer = await getSession();
   if (!customer) {
@@ -274,10 +283,7 @@ export async function setStoreActiveAction(
       `update public.stores set is_active = $2, updated_at = now() where id = $1`,
       [storeId, isActive]
     );
-    revalidatePath("/");
-    revalidatePath("/stores");
-    revalidatePath("/admin");
-    revalidatePath("/store");
+    revalidateMarketplace();
     return { success: true };
   } catch (error) {
     return {
@@ -341,10 +347,7 @@ export async function deleteStoreAsAdmin(
        delete from public.stores where id = $1`,
       [id]
     );
-    revalidatePath("/");
-    revalidatePath("/stores");
-    revalidatePath("/admin");
-    revalidatePath("/store");
+    revalidateMarketplace();
     return { success: true };
   } catch (error) {
     return {
@@ -421,10 +424,7 @@ export async function setStoreStatusAction(
         // Status change already applied; message delivery is best effort.
       }
     }
-    revalidatePath("/");
-    revalidatePath("/stores");
-    revalidatePath("/admin");
-    revalidatePath("/store");
+    revalidateMarketplace();
     return { success: true };
   } catch (error) {
     return {

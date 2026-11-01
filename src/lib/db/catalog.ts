@@ -202,13 +202,15 @@ export async function loadCatalog(): Promise<CatalogSnapshot> {
           order by name`
       ),
       query<ProductRow>(
-        `select id, name, brand, slug, category_id, store_id, description, unit,
-                images, original_price, current_price, base_discount_percent, date_type,
-                expiry_date, listed_at, drift_rate_weekly, stock_quantity,
-                featured, storage_condition, nafdac_reg_no, condition_notes,
-                nutritional_highlights
-           from public.products
-          order by listed_at desc`
+        `select p.id, p.name, p.brand, p.slug, p.category_id, p.store_id, p.description, p.unit,
+                p.images, p.original_price, p.current_price, p.base_discount_percent, p.date_type,
+                p.expiry_date, p.listed_at, p.drift_rate_weekly, p.stock_quantity,
+                p.featured, p.storage_condition, p.nafdac_reg_no, p.condition_notes,
+                p.nutritional_highlights
+           from public.products p
+           join public.stores s on s.id = p.store_id
+          where s.is_active = true and coalesce(s.status, 'approved') = 'approved'
+          order by p.listed_at desc`
       ),
       query<ReviewScoreRow>(
         `select store_id, freshness_score, handoff_speed_score, cleanliness_score
@@ -243,7 +245,7 @@ export async function loadCatalog(): Promise<CatalogSnapshot> {
     hydrateStore(row, dealCounts.get(row.id) || 0)
   );
   const categories = categoryRows.map((row) =>
-    hydrateCategory(row, categoryCounts.get(row.id) ?? asInt(row.item_count))
+    hydrateCategory(row, categoryCounts.get(row.id) || 0)
   );
 
   const reviews: Record<string, StoreReviewData> = {};
